@@ -5,9 +5,6 @@
   hosts: spine
   tags: vrouter
 
-  vars_files:
-  - cli_vault.yml
-
   tasks:
     - name: Setup vrouter
       pn_ztp_vrouter_setup:
@@ -33,23 +30,17 @@
   hosts: leaf
   tags: l3-vrrp
 
-  vars_files:
-  - cli_vault.yml
-
-  vars:
-  - csv_file: vrrp.csv
-
   tasks:
     - name: Configure L3 vrrp
       pn_ztp_l3_vrrp:
         pn_spine_list: "{{ groups['spine'] }}"  # List of all spine switches mentioned under [spine] grp in hosts file.
         pn_leaf_list: "{{ groups['leaf'] }}"    # List of all leaf switches mentioned under [leaf] grp in hosts file.
         pn_csv_data: "{{ lookup('file', '{{ csv_file }}') }}"  # Csv file containing L3 vrrp data.
-        pn_pim_ssm: True                        # Variable to specify pim_ssm for ospf
-        pn_jumbo_frames: True                   # Flag to assign mtu Default: False.
-        pn_addr_type: 'ipv4_ipv6'               # The type of address scheme to be used. Options: ipv4/dual_stack.
+        pn_pim_ssm: "{{ pn_pim_ssm }}"                        # Variable to specify pim_ssm for ospf
+        pn_jumbo_frames: "{{ pn_jumbo_frames }}"                   # Flag to assign mtu Default: False.
+        pn_addr_type: "{{ pn_addr_type }}"               # The type of address scheme to be used. Options: ipv4/dual_stack.
         pn_current_switch: "{{ inventory_hostname }}"  # Name of the switch on which this task is currently getting executed.
-        pn_ospf_redistribute: 'none'            # Variable to configure ospf redistribute
+        pn_ospf_redistribute: "{{ pn_ospf_redistribute }}"            # Variable to configure ospf redistribute
       register: vrrp_out                        # Variable to hold/register output of the above tasks.
       until:  vrrp_out.failed != true           # If error pops up it will retry the code
       retries: 3                                # This is the retries count
@@ -104,9 +95,6 @@
 - name: Configure OSPF
   hosts: all
   tags: iospf-leaf
-
-  vars_files:
-  - cli_vault.yml
 
   tasks:
     - name: Configure OSPF
