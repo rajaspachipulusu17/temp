@@ -120,6 +120,9 @@ def main():
                                 break
 
                             switch = elements[0]
+                            if len(switch) > 59:
+                                output += 'Switch name lenght should be less than 60, Invalid switch name {} '.format(
+                                        switch)
                             ip = elements[1]
 
                             # Switch name validation

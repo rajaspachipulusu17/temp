@@ -5,9 +5,6 @@
 - name: Validate Hosts file
   hosts: localhost
 
-  vars:
-    - hosts_file: hosts
-
   tasks:
     # This task is to validate hosts file.
     - name: Validate Hosts file
