@@ -1,5 +1,5 @@
 # This task will create vrouter on spine switches.
-# It uses pn_ztp_vrouter_setup.py module from library/ directory.
+# It uses pn_ztp_vrouter_setup_third_party.py module from library/ directory.
 # If the tasks fails then it will retry as specified by retries count.
 - name: Configure vrouter
   hosts: leaf
@@ -11,7 +11,7 @@
       pn_ztp_vrouter_setup_third_party:
         pn_loopback_ip: "10.10.10.1/32"              # Loopback network to confgure ipv4 loopback ips to vrouters.
         pn_loopback_ip_v6: '2620:0000:167F:b000::10/128' # Loopback network to confgure ipv6 loopback ips vrouters.
-        pn_vrrp_id: "18"                               # Vrrp-id for the vrouters
+        pn_vrrp_id: "15"                               # Vrrp-id for the vrouters
         pn_current_switch: "{{ inventory_hostname }}"  # The name of the current executing switch
         pn_spine_list: "{{ groups['third_party_spine'] }}"         # List of all spine switches mentioned under [spine] grp in hosts file.
         pn_leaf_list: "{{ groups['leaf'] }}"           # List of all leaf switches mentioned under [leaf] grp in hosts file.
@@ -33,7 +33,7 @@
   tasks:
     # This task is to configure VRRP for Layer 3 fabric.
     # It takes required VRRP config data from csv file.
-    # It uses pn_l3_vrrp.py module from library/ directory.
+    # It uses pn_ztp_l3_vrrp_third_party.py module from library/ directory.
     - name: Configure L3 vrrp
       pn_ztp_l3_vrrp_third_party:
         pn_spine_list: "{{ groups['third_party_spine'] }}"  # List of all spine switches mentioned under [spine] grp in hosts file.
@@ -59,7 +59,7 @@
   tasks:
 
     # This task is to configure ZTP for layer3 fabric.
-    # It uses pn_l3_ztp.py module from library/ directory.
+    # It uses pn_ztp_l3_links_third_party.py module from library/ directory.
     # If the tasks fails then it will retry as specified by retries count.
     - name: Auto configure link IPs
       pn_ztp_l3_links_third_party:
@@ -87,4 +87,42 @@
 
     - pause:
         seconds: 2                                      # Pause playbook execution for specified amount of time.
+
+
+# This task is to configure OSPF.
+# It uses pn_ztp_bgp_ospf_third_party.py module from library/ directory.
+- name: Configure OSPF
+  hosts: all
+  tags: iospf-leaf
+
+  tasks:
+    - name: Configure OSPF
+      pn_ztp_bgp_ospf_third_party:
+        pn_current_switch: "{{ inventory_hostname }}"      # Name of the switch on which this task is currently getting executed.
+        pn_spine_list: "{{ groups['third_party_spine'] }}"             # List of all spine switches mentioned under [spine] grp in hosts file.
+        pn_leaf_list: "{{ groups['leaf'] }}"               # List of all leaf switches mentioned under [leaf] grp in hosts file.
+        pn_bfd: True                                    # Indicate if BFD config should be added to eBGP. Default: False.
+        pn_routing_protocol: 'ospf'                        # Routing protocol to configure. Choices are ['ebgp', 'ospf']
+        pn_ospf_v4_area_id: "0"                      # Area id to configure for ospfv4. Default: 0
+        pn_ospf_v6_area_id: "0.0.0.0"                  # Area id to configure for ospfv6. Default: 0.0.0.0
+        pn_iospf_vlan: "4040"                             # Vlan for creating the interfaces between leaf clusters. Default:'4040'
+        pn_iospf_ipv4_range: "10.10.100.20"              # Ip range for creating the interfaces between leaf clusters.
+        pn_cidr_ipv4: "24"                                 # subnet count for iospf ip range
+        pn_subnet_ipv4: "31"                               # ipv4 subnet for iospf
+        pn_iospf_ipv6_range: "2610:0000:167F:b001::a0"     # Ip range for creating the interfaces between leaf clusters.
+        pn_cidr_ipv6: "112"                                # subnet count for iospf ip range
+        pn_subnet_ipv6: "127"                              # ipv4 subnet for iospf
+        pn_ospf_cost: "10000"                              # ospf cost. Default: '10000'.
+        pn_addr_type: 'ipv4_ipv6'                          # The type of address scheme to be used. Options: ipv4/dual_stack.
+        pn_ospf_redistribute: "none"                  # Variable to configure ospf redistribute
+        pn_pim_ssm: True                                  # pim-ssm variable for configuration
+        pn_area_configure_flag: "singlearea"               # Varible to configure area choices=['singlearea', 'dualarea'], default='singlearea'
+        pn_jumbo_frames: True                              # Flag to assign mtu Default: False.
+      register: ospf_out                                   # Variable to hold/register output of the above tasks.
+      until: ospf_out.failed != true                       # If the above code fails it will retry the code
+      retries: 3                                           # This is the retries count
+      delay: 1
+
+    - pause:
+        seconds: 2                                         # Pause playbook execution for specified amount of time.
 
