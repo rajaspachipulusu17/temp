@@ -1065,8 +1065,8 @@ def main():
     cli += ' vrouter-show format name no-show-headers '
     vrouter_names = run_cli(module, cli).split()
 
-    message = assign_router_id(module, vrouter_names)
-    message += create_leaf_clusters(module)
+    #message = assign_router_id(module, vrouter_names)
+    message = create_leaf_clusters(module)
 
     if routing_protocol == 'ebgp':
         dict_bgp_as = find_bgp_as_dict(module)
