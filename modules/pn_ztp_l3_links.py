@@ -401,47 +401,6 @@ def delete_trunk(module, switch, switch_port, peer_switch):
             return ' %s: Deleted %s trunk successfully \n' % (switch, trunk[0])
 
 
-def assign_loopback_ip(module, loopback_address):
-    """
-    Method to add loopback interface to vrouters.
-    :param module: The Ansible module to fetch input parameters.
-    :param loopback_address: The loopback ip to be assigned.
-    :return: String describing if loopback ips got assigned or not.
-    """
-    global CHANGED_FLAG
-    output = ''
-    address = loopback_address.split('.')
-    static_part = str(address[0]) + '.' + str(address[1]) + '.'
-    static_part += str(address[2]) + '.'
-
-    cli = pn_cli(module)
-    clicopy = cli
-    switch_list = module.params['pn_spine_list'] + module.params['pn_leaf_list']
-
-    vrouter_count = int(address[3].split('/')[0])
-    for switch in switch_list:
-        vrouter = switch + '-vrouter'
-        ip = static_part + str(vrouter_count)
-
-        cli = clicopy
-        cli += ' vrouter-loopback-interface-show ip ' + ip
-        cli += ' format switch no-show-headers '
-        existing_vrouter = run_cli(module, cli).split()
-
-        if vrouter not in existing_vrouter:
-            cli = clicopy
-            cli += ' vrouter-loopback-interface-add vrouter-name '
-            cli += vrouter
-            cli += ' ip ' + ip
-            run_cli(module, cli)
-            CHANGED_FLAG.append(True)
-
-        output += ' %s: Added loopback ip %s to %s \n' % (switch, ip, vrouter)
-        vrouter_count += 1
-
-    return output
-
-
 def finding_initial_ip(module, current_switch, leaf_list):
     """
     Method to find the intial ip of the ipv4 addressing scheme.
@@ -612,8 +571,6 @@ def main():
                                  choices=['internal', 'external'], default='internal'),
             pn_update_fabric_to_inband=dict(required=False, type='bool',
                                             default=False),
-            pn_loopback_ip=dict(required=False, type='str',
-                                default='109.109.109.1/24'),
             pn_bfd=dict(required=False, type='bool', default=False),
             pn_bfd_min_rx=dict(required=False, type='str'),
             pn_bfd_multiplier=dict(required=False, type='str'),

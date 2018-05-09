@@ -58,9 +58,6 @@
   hosts: leaf
   tags: l3-links
 
-  vars_files:
-  - cli_vault.yml
-
   tasks:
     - name: Auto configure link IPs
       pn_ztp_l3_links:
@@ -91,14 +88,14 @@
 
 
 # This task is to configure OSPF.
-# It uses pn_ztp_bgp_ospf.py module from library/ directory.
+# It uses pn_ztp_ospf.py module from library/ directory.
 - name: Configure OSPF
   hosts: all
   tags: iospf-leaf
 
   tasks:
     - name: Configure OSPF
-      pn_ztp_bgp_ospf:
+      pn_ztp_ospf:
         pn_current_switch: "{{ inventory_hostname }}"             # Name of the switch on which this task is currently getting executed.
         pn_spine_list: "{{ groups['spine'] }}"                    # List of all spine switches mentioned under [spine] grp in hosts file.
         pn_leaf_list: "{{ groups['leaf'] }}"                      # List of all leaf switches mentioned under [leaf] grp in hosts file.

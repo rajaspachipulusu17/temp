@@ -24,10 +24,7 @@
 
 - name: Configure L3 VRRP with OSPF
   hosts: leaf
-  tags: vrrp-l3-links
-
-  vars:
-  - csv_file: vrrp_verizon.csv
+  tags: l3-vrrp
 
   tasks:
     # This task is to configure VRRP for Layer 3 fabric.
@@ -53,7 +50,7 @@
 
 - name: Configure L3 VRRP with OSPF
   hosts: leaf
-  tags: vrrp-l3-links
+  tags: l3-links
 
   tasks:
 
@@ -96,7 +93,7 @@
 
   tasks:
     - name: Configure OSPF
-      pn_ztp_bgp_ospf_third_party:
+      pn_ztp_ospf_third_party:
         pn_current_switch: "{{ inventory_hostname }}"                        # Name of the switch on which this task is currently getting executed.
         pn_spine_list: "{{ groups['third_party_spine'] }}"                   # List of all spine switches mentioned under [spine] grp in hosts file.
         pn_leaf_list: "{{ groups['leaf'] }}"                                 # List of all leaf switches mentioned under [leaf] grp in hosts file.
