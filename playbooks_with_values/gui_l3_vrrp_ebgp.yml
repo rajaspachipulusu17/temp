@@ -94,14 +94,19 @@
       pn_ztp_ebgp:
         pn_spine_list: "{{ groups['spine'] }}"             # List of all spine switches mentioned under [spine] grp in hosts file.
         pn_leaf_list: "{{ groups['leaf'] }}"               # List of all leaf switches mentioned under [leaf] grp in hosts file.
-        pn_bfd: True                             # Indicate if BFD config should be added to eBGP. Default: False.
-        pn_routing_protocol: 'ebgp'                        # Routing protocol to configure. Choices are ['ebgp']
-        pn_address_type: 'ipv4_ipv6'                       # Specify address type for ebgp. Choices are ['ipv4_ipv6', 'ipv4']
-        pn_bgp_maxpath: "16"             # BGP-MAXPATH value to be assigned to vrouters. Default: 16
-        pn_bgp_redistribute: "connected"   # BGP-REDISTRIBUTE value to be assigned to vrouters. Choices are [none, static, connected, rip, ospf]. Default: connected
-        pn_bgp_as_range: "6500"           # BGP-AS-RANGE value to be assigned to vrouters. Default: 65000
-        pn_ibgp_ip_range: "75.75.75.0/24"         # iBGP IP range to be assigned to vrouter interfaces. Default: '75.75.75.0/24'
-        pn_ibgp_vlan: "4040"                 # iBGP vlan value to be assigned to vrouter interfaces. Default 4040
+        pn_bfd: True                                       # Indicate if BFD config should be added to eBGP. Default: False.
+        pn_routing_protocol: 'ebgp'                        # Routing protocol to configure. Choices are ['ebgp', 'ospf']
+        pn_bgp_maxpath: "16"                               # BGP-MAXPATH value to be assigned to vrouters. Default: 16
+        pn_address_type: "ipv4_ipv6"
+        pn_ibgp_ipv4_range: "10.20.100.20"                 # Ip range for creating the interfaces between leaf clusters.
+        pn_cidr_ipv4: "24"                                 # subnet count for iospf ip range
+        pn_subnet_ipv4: "31"                               # ipv4 subnet for iospf
+        pn_ibgp_ipv6_range: "2610:0000:167F:c001::c0"      # Ip range for creating the interfaces between leaf clusters.
+        pn_cidr_ipv6: "112"                                # subnet count for iospf ip range
+        pn_subnet_ipv6: "127"                              # ipv4 subnet for iospf
+        pn_bgp_redistribute: "connected"                   # BGP-REDISTRIBUTE value to be assigned to vrouters. Choices are [none, static, connected, rip, ospf]. Default: connected
+        pn_bgp_as_range: "6500"                            # BGP-AS-RANGE value to be assigned to vrouters. Default: 65000
+        pn_ibgp_vlan: "4040"                               # iBGP vlan value to be assigned to vrouter interfaces. Default 4040
       register: bgp_out                                    # Variable to hold/register output of the above tasks.
       until: bgp_out.failed != true                        # If the above code fails it will retry the code
       retries: 3                                           # This is the retries count

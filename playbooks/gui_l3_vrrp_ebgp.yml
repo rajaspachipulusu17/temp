@@ -97,11 +97,16 @@
         pn_leaf_list: "{{ groups['leaf'] }}"               # List of all leaf switches mentioned under [leaf] grp in hosts file.
         pn_bfd: "{{ pn_bfd }}"                             # Indicate if BFD config should be added to eBGP. Default: False.
         pn_routing_protocol: 'ebgp'                        # Routing protocol to configure. Choices are ['ebgp']
-        pn_address_type: "{{ pn_address_type }}"           # Specify address type for ebgp. Choices are ["ipv4","ipv4_ipv6"].
         pn_bgp_maxpath: "{{ pn_bgp_maxpath }}"             # BGP-MAXPATH value to be assigned to vrouters. Default: 16
+        pn_address_type: "{{ pn_address_type }}"           # Specify address type for ebgp. Choices are ["ipv4","ipv4_ipv6"].
+        pn_ibgp_ipv4_range: "{{ pn_ibgp_ipv4_range }}"     # Ip range for creating the interfaces between leaf clusters.
+        pn_cidr_ipv4: "{{ pn_cidr_ipv4 }}"                 # subnet count for iospf ip range
+        pn_subnet_ipv4: "{{ pn_subnet_ipv4 }}"             # ipv4 subnet for iospf
+        pn_ibgp_ipv6_range: "{{ pn_ibgp_ipv6_range }}"     # Ip range for creating the interfaces between leaf clusters.
+        pn_cidr_ipv6: "{{ pn_cidr_ipv6 }}"                 # subnet count for iospf ip range
+        pn_subnet_ipv6: "{{ pn_subnet_ipv6 }}"             # ipv4 subnet for iospf
         pn_bgp_redistribute: "{{ pn_bgp_redistribute }}"   # BGP-REDISTRIBUTE value to be assigned to vrouters. Choices are [none, static, connected, rip, ospf]. Default: connected
         pn_bgp_as_range: "{{ pn_bgp_as_range }}"           # BGP-AS-RANGE value to be assigned to vrouters. Default: 65000
-        pn_ibgp_ip_range: "{{ pn_ibgp_ip_range }}"         # iBGP IP range to be assigned to vrouter interfaces. Default: '75.75.75.0/24'
         pn_ibgp_vlan: "{{ pn_ibgp_vlan }}"                 # iBGP vlan value to be assigned to vrouter interfaces. Default 4040
       register: bgp_out                                    # Variable to hold/register output of the above tasks.
       until: bgp_out.failed != true                        # If the above code fails it will retry the code

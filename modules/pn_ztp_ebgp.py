@@ -21,7 +21,7 @@
 import shlex
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.pn_nvos import pn_cli
+from ansible.module_utils.pn_nvos import *
 
 DOCUMENTATION = """
 ---
@@ -297,40 +297,63 @@ def assign_ibgp_interface(module, dict_bgp_as):
     subnet_count = 0
     supernet = 30
 
+    spine_list = module.params['pn_spine_list']
+    leaf_list = module.params['pn_leaf_list']
+    ibgp_ipv4_range = module.params['pn_ibgp_ipv4_range']
+    cidr_v4 = int(module.params['pn_cidr_ipv4'])
+    subnet_v4 = module.params['pn_subnet_ipv4']
+    ibgp_ipv6_range = module.params['pn_ibgp_ipv6_range']
+    cidr_v6 = int(module.params['pn_cidr_ipv6'])
+    subnet_v6 = module.params['pn_subnet_ipv6']
+    addr_type = module.params['pn_address_type']
+
     cli = pn_cli(module)
     clicopy = cli
 
-    address = ibgp_ip_range.split('.')
-    static_part = str(address[0]) + '.' + str(address[1]) + '.'
-    static_part += str(address[2]) + '.'
+    if addr_type == 'ipv4' or addr_type == 'ipv4_ipv6':
+        available_ips_ipv4 = calculate_link_ip_addresses_ipv4(ibgp_ipv4_range, cidr_v4, subnet_v4)
+
+    if addr_type == 'ipv4_ipv6':
+        get_count = 2 if subnet_v6 == '127' else 3
+        available_ips_ipv6 = calculate_link_ip_addresses_ipv6(ibgp_ipv6_range, cidr_v6, subnet_v6,
+                                                              get_count)
+
+    cli = pn_cli(module)
+    clicopy = cli
 
     cli += ' cluster-show format name no-show-headers '
     cluster_list = run_cli(module, cli).split()
 
+
     if len(cluster_list) > 0 and cluster_list[0] != 'Success':
         for cluster in cluster_list:
             cli = clicopy
-            cli += ' cluster-show name %s format cluster-node-1' % cluster
-            cli += ' no-show-headers'
-            cluster_node_1 = run_cli(module, cli).split()[0]
+            cli += ' cluster-show name %s format cluster-node-1,' % cluster
+            cli += 'cluster-node-2 no-show-headers'
+            cluster_node_1, cluster_node_2 = run_cli(module, cli).split()
 
             if cluster_node_1 not in spine_list and cluster_node_1 in leaf_list:
-                ip_count = subnet_count * 4
-                ip1 = static_part + str(ip_count + 1) + '/' + str(supernet)
-                ip2 = static_part + str(ip_count + 2) + '/' + str(supernet)
+                ipv4_1, ipv4_2 = available_ips_ipv4[0:2]
+                available_ips_ipv4.remove(ipv4_1)
+                available_ips_ipv4.remove(ipv4_2)
+                ip_list = available_ips_ipv6.next()
+                if subnet_v6 == '127':
+                    ipv6_1, ipv6_2 = ip_list[0:2]
+                else:
+                    ipv6_1, ipv6_2 = ip_list[1:3]
 
-                cli = clicopy
-                cli += ' cluster-show name %s format cluster-node-2' % cluster
-                cli += ' no-show-headers'
-                cluster_node_2 = run_cli(module, cli).split()[0]
 
-                remote_as = dict_bgp_as[cluster_node_1]
+            remote_as = dict_bgp_as[cluster_node_1]
+            if cluster_node_1 not in spine_list and cluster_node_1 in leaf_list:
                 output += vrouter_interface_ibgp_add(module, cluster_node_1,
-                                                     ip1, ip2, remote_as)
+                                                     ipv4_1, ipv4_2, remote_as)
                 output += vrouter_interface_ibgp_add(module, cluster_node_2,
-                                                     ip2, ip1, remote_as)
+                                                     ipv4_2, ipv4_1, remote_as)
+#                output += vrouter_interface_ibgp_add(module, cluster_node_1,
+#                                                     ipv6_1, ipv6_2, remote_as)
+#                output += vrouter_interface_ibgp_add(module, cluster_node_2,
+#                                                     ipv6_2, ipv6_1, remote_as)
 
-                subnet_count += 1
     else:
         output += ' No leaf clusters present to add iBGP \n'
 
@@ -680,6 +703,14 @@ def main():
                                               'rip', 'ospf'],
                                      default='connected'),
             pn_bgp_maxpath=dict(required=False, type='str', default='16'),
+            pn_ibgp_ipv4_range=dict(required=False, type='str',
+                                    default='75.75.75.0'),
+            pn_cidr_ipv4=dict(required=False, type='str', default='24'),
+            pn_subnet_ipv4=dict(required=False, type='str', default='31'),
+            pn_ibgp_ipv6_range=dict(required=False, type='str',
+                                    default='2620:0000:177F:c001::c0'),
+            pn_cidr_ipv6=dict(required=False, type='str', default='112'),
+            pn_subnet_ipv6=dict(required=False, type='str', default='127'),
             pn_bfd=dict(required=False, type='bool', default=False),
             pn_ibgp_ip_range=dict(required=False, type='str',
                                   default='75.75.75.0/24'),
@@ -706,7 +737,7 @@ def main():
                                  module.params['pn_bgp_maxpath'],
                                  module.params['pn_bgp_redistribute'])
         message += add_bgp_neighbor(module, dict_bgp_as)
-#        message += assign_ibgp_interface(module, dict_bgp_as)
+        message += assign_ibgp_interface(module, dict_bgp_as)
 
     message_string = message
     results = []
