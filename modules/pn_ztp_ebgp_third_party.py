@@ -27,7 +27,7 @@ DOCUMENTATION = """
 ---
 module: pn_ztp_ebgp
 author: 'Pluribus Networks (devops@pluribusnetworks.com)'
-short_description: Module to configure eBGP.
+short_description: Module to configure eBGP/OSPF.
 description: It performs following steps:
     EBGP:
       - Assigning bgp_as
@@ -433,18 +433,63 @@ def add_bgp_neighbor(module, dict_bgp_as):
             cli = clicopy
             cli += ' vrouter-interface-show vrouter-name %s l3-port %s ' % (
                  vrouter, port)
-            cli += 'format ip no-show-headers'
-            ip = run_cli(module, cli).split()
-            ip = list(set(ip))
-            ip.remove(vrouter)
-            ip = ip[0]
+            cli += 'format ip'
+            if addr_type == 'ipv4_ipv6':
+                cli += ',ip2'
+            cli += ' no-show-headers'
+            vr_out = run_cli(module, cli).split()
+            vr_out = list(set(vr_out))
+            vr_out.remove(vrouter)
+            for _temp in vr_out:
+                if len(_temp.split(".")) == 4:
+                    ip = _temp
+                else:
+                    ipv6 = _temp
 
             ip = ip.split('.')
             static_part = str(ip[0]) + '.' + str(ip[1]) + '.'
             static_part += str(ip[2]) + '.'
             last_octet = str(ip[3]).split('/')
-            remote_ip_lastoctet = int(last_octet[0]) + 1
+            remote_ip_lastoctet = int(last_octet[0]) - 1
             remote_ip = static_part + str(remote_ip_lastoctet)
+
+            if addr_type == 'ipv4_ipv6':
+                ipv6 = ipv6.split(":")
+                ip6 = ipv6
+                ipv6 = ipv6[-1]
+                ipv6 = ipv6.split('/')[0]
+                decimal = int(ipv6, 16)
+                decimal = decimal - 1
+                hexa_val =  hex(decimal)
+                hexa_val = hexa_val.lstrip('0x')
+                ip6[-1] = hexa_val
+                remote_ipv6 = ':'.join(ip6)
+
+                cli = clicopy
+                cli += 'vrouter-bgp-show'
+                cli += ' neighbor %s format switch no-show-headers ' % (
+                    remote_ipv6)
+                already_added = run_cli(module, cli).split()
+
+                if vrouter in already_added:
+                    output += ''
+                else:
+                    cli = clicopy
+                    cli += ' vrouter-bgp-add vrouter-name ' + vrouter
+                    cli += ' neighbor %s remote-as %s ' % (remote_ipv6,
+                                                           remote_as)
+                    if module.params['pn_bfd']:
+                        cli += ' bfd '
+    
+                    if weight_allowas_flag == 1:
+                        cli += ' weight 100 allowas-in '
+    
+                    if 'Success' in run_cli(module, cli):
+                        output += ' %s: Added BGP Neighbour %s for %s \n' % (
+                            leaf, remote_ipv6, vrouter
+                        )
+                        CHANGED_FLAG.append(True)
+
 
             cli = clicopy
             cli += ' vrouter-bgp-show'
