@@ -453,9 +453,11 @@ def finding_initial_ip(module, current_switch, leaf_list):
     :return: String describing output of configuration.
     """
     spine_list = list(module.params['pn_spine_list'])
+    routing_protocol = module.params['pn_routing_protocol']
     spine_list = [x.strip() for x in spine_list]
     spines = ','.join(spine_list)
     count_output = 0
+    count = 0
 
     cli = pn_cli(module)
     clicopy = cli
@@ -466,8 +468,12 @@ def finding_initial_ip(module, current_switch, leaf_list):
         cli = clicopy
         cli += " switch %s port-show hostname %s count-output | grep Count" %  (leaf, spines)
         count_output += int(run_cli(module, cli).split(':')[1].strip())
+        count += 1
 
-    return count_output
+    if routing_protocol == 'ospf':
+        return count_output 
+
+    return count_output - (count * 2)
 
 
 def auto_configure_link_ips(module):
@@ -490,9 +496,6 @@ def auto_configure_link_ips(module):
     if current_switch in leaf_list:
         # Disable auto trunk on all switches.
         modify_auto_trunk_setting(module, current_switch, 'disable')
-#        for spine in spine_list:
-#            # Disable auto trunk.
-#            modify_auto_trunk_setting(module, spine, 'disable')
 
         # Get the list of available link ips to assign.
         count_output = finding_initial_ip(module, current_switch, leaf_list)
@@ -598,6 +601,8 @@ def main():
             pn_net_address_ipv6=dict(required=False, type='str', aliases=['pn_ipv6_start_address']),
             pn_cidr_ipv4=dict(required=False, type='str'),
             pn_cidr_ipv6=dict(required=False, type='str'),
+            pn_routing_protocol=dict(required=False, type='str',
+                                     choices=['ebgp','ospf'], default='ospf'),
             pn_subnet_ipv4=dict(required=False, type='str'),
             pn_subnet_ipv6=dict(required=False, type='str'),
             pn_spine_list=dict(required=False, type='list'),
