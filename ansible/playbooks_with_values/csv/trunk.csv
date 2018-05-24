@@ -1,0 +1,5 @@
+# switch_name, trunk_name, list_of_ports
+#ugui-9kleaf3, s1-to-leafs,  11, 12, 13
+#ugui-9kleaf4, s2-to-leafs,  21, 22, 23
+hmplabpsq-we50100, s1-to-leafs,  11, 12, 13
+hmplabpsq-we50200, s2-to-leafs,  21, 22, 23

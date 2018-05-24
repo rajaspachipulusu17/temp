@@ -1,0 +1,125 @@
+#L3 VRRP eBGP
+---
+
+
+# This task will create vrouter on spine switches.
+# It uses pn_ztp_vrouter_setup.py module from library/ directory.
+# If the tasks fails then it will retry as specified by retries count.
+- name: Configure vrouter
+  hosts: leaf
+  tags: vrouter
+
+
+  tasks:
+    - name: Setup vrouter
+      pn_ztp_vrouter_setup_third_party:
+        pn_loopback_ip: "10.10.10.3/32"                # Loopback network to confgure ipv4 loopback ips to vrouters.
+        pn_vrrp_id: "15"                               # Vrrp-id for the vrouters
+        pn_current_switch: "{{ inventory_hostname }}"  # The name of the current executing switch
+        pn_spine_list: "{{ groups['third_party_spine'] }}"         # List of all spine switches mentioned under [spine] grp in hosts file.
+        pn_leaf_list: "{{ groups['leaf'] }}"           # List of all leaf switches mentioned under [leaf] grp in hosts file.
+        pn_pim_ssm: True                               # Variable to specify pim_ssm for ospf
+        pn_ospf_redistribute: "none"                   # Variable to configure ospf redistribute
+      register: vrouter_out                            # Variable to hold/register output of the above tasks.
+      until: vrouter_out.failed != true                # If the above code fails it will retry the code
+      retries: 3                                       # This is the retries count
+      delay: 3
+
+
+- name: Configure L3 VRRP with eBGP
+  hosts: leaf
+  tags: l3-vrrp
+
+  vars:
+  - csv_file: vrrp_verizon.csv
+
+  tasks:
+    # This task is to configure VRRP for Layer 3 fabric.
+    # It takes required VRRP config data from csv file.
+    # It uses pn_l3_vrrp.py module from library/ directory.
+    - name: Configure L3 vrrp
+      pn_ztp_l3_vrrp_third_party:
+        pn_spine_list: "{{ groups['third_party_spine'] }}"  # List of all spine switches mentioned under [spine] grp in hosts file.
+        pn_leaf_list: "{{ groups['leaf'] }}"    # List of all leaf switches mentioned under [leaf] grp in hosts file.
+        pn_csv_data: "{{ lookup('file', '{{ csv_file }}') }}"  # Csv file containing L3 vrrp data.
+        pn_pim_ssm: True                        # Variable to specify pim_ssm for ospf
+        pn_jumbo_frames: True                   # Flag to assign mtu Default: False.
+        pn_addr_type: 'ipv4_ipv6'                    # The type of address scheme to be used. Options: ipv4/dual_stack.
+        pn_current_switch: "{{ inventory_hostname }}"  # Name of the switch on which this task is currently getting executed.
+        pn_ospf_redistribute: 'none'            # Variable to configure ospf redistribute
+      register: vrrp_out                        # Variable to hold/register output of the above tasks.
+      until:  vrrp_out.failed != true           # If error pops up it will retry the code
+      retries: 3                                # This is the retries count
+      delay: 1
+
+    - pause:
+        seconds: 2                              # Pause playbook execution for specified amount of time.
+
+- name: Configure L3 VRRP with eBGP
+  hosts: leaf
+  tags: l3-links
+
+    # This task is to configure ZTP for layer3 fabric.
+    # It uses pn_l3_ztp.py module from library/ directory.
+    # If the tasks fails then it will retry as specified by retries count.
+  tasks:
+    - name: Auto configure link IPs
+      pn_ztp_l3_links_third_party:
+        pn_current_switch: "{{ inventory_hostname }}"   # Name of the switch on which this task is currently getting executed.
+        pn_spine_list: "{{ groups['third_party_spine'] }}"          # List of all spine switches mentioned under [spine] grp in hosts file.
+        pn_leaf_list: "{{ groups['leaf'] }}"            # List of all leaf switches mentioned under [leaf] grp in hosts file.
+        pn_addr_type: 'ipv4_ipv6'                            # The type of address scheme to be used. Options: ipv4/dual_stack.
+        pn_routing_protocol: 'ebgp'
+        pn_ipv4_start_address: "172.168.1.1"             # Ipv4 Network address required to calculate link IPs for layer3 fabric.
+        pn_cidr_ipv4: "24"                              # Ipv4 CIDR required to calculate link IPs for layer3 fabric.
+        pn_subnet_ipv4: "31"                            # Ipv4 Subnet mask required to calculate link IPs for layer3 fabric.
+        pn_ipv6_start_address: '2620:0000:167F:b001::40'  # Ipv6 Network address required to calculate link IPs for layer3 fabric.
+        pn_cidr_ipv6: "112"                             # ipv6 Subnet mask required to calculate link IPs for layer3 fabric.
+        pn_subnet_ipv6: "127"                           # Ipv6 Subnet mask required to calculate link IPs for layer3 fabric.
+        pn_if_nat_realm: 'internal'                     # Type of if_nat_realm. choices=['internal', 'external'], default='internal'
+        pn_bfd: True                                    # Flag to indicate if BFD config should be added to vrouter interfaces. Default: False.
+        pn_bfd_min_rx: 200                              # BFD-MIN-RX value required for adding BFD configuration to vrouter interfaces.
+        pn_bfd_multiplier: 3                            # BFD_MULTIPLIER value required for adding BFD configuration to vrouter interfaces.
+        pn_update_fabric_to_inband: False               # Flag to indicate if fabric network should be updated to in-band. Default: False.
+        pn_stp: True                                    # Flag to enable STP (spanning tree protocol). Default: False.
+        pn_jumbo_frames: True                           # Flag to assign mtu Default: False.
+      register: ztp_l3_out                              # Variable to hold/register output of the above tasks.
+      until:  ztp_l3_out.failed != true                 # If error pops up it will retry the code
+      retries: 3                                        # This is the retries count
+      delay: 1
+
+    - pause:
+        seconds: 2                                      # Pause playbook execution for specified amount of time.
+
+
+- name: Configure eBGP
+  hosts: leaf[0]
+  tags: bgp
+
+  tasks:
+    # This task is to configure eBGP.
+    # It uses pn_ebgp.py module from library/ directory.
+    - name: Configure eBGP
+      pn_ztp_ebgp_third_party:
+        pn_spine_list: "{{ groups['third_party_spine'] }}"             # List of all spine switches mentioned under [spine] grp in hosts file.
+        pn_leaf_list: "{{ groups['leaf'] }}"               # List of all leaf switches mentioned under [leaf] grp in hosts file.
+        pn_bfd: True                                       # Indicate if BFD config should be added to eBGP. Default: False.
+        pn_routing_protocol: 'ebgp'                        # Routing protocol to configure. Choices are ['ebgp', 'ospf']
+        pn_bgp_maxpath: "16"                               # BGP-MAXPATH value to be assigned to vrouters. Default: 16
+        pn_address_type: "ipv4_ipv6"
+        pn_ibgp_ipv4_range: "10.20.100.20"                 # Ip range for creating the interfaces between leaf clusters.
+        pn_cidr_ipv4: "24"                                 # subnet count for iospf ip range
+        pn_subnet_ipv4: "31"                               # ipv4 subnet for iospf
+        pn_ibgp_ipv6_range: "2610:0000:167F:c001::c0"      # Ip range for creating the interfaces between leaf clusters.
+        pn_cidr_ipv6: "112"                                # subnet count for iospf ip range
+        pn_subnet_ipv6: "127"                              # ipv4 subnet for iospf
+        pn_bgp_redistribute: "connected"                   # BGP-REDISTRIBUTE value to be assigned to vrouters. Choices are [none, static, connected, rip, ospf]. Default: connected
+        pn_bgp_as_range: "6500"                            # BGP-AS-RANGE value to be assigned to vrouters. Default: 65000
+        pn_ibgp_vlan: "4040"                               # iBGP vlan value to be assigned to vrouter interfaces. Default 4040
+      register: bgp_out                                    # Variable to hold/register output of the above tasks.
+      until: bgp_out.failed != true                        # If the above code fails it will retry the code
+      retries: 1                                           # This is the retries count
+      delay: 1
+
+    - pause:
+        seconds: 2                                         # Pause playbook execution for specified amount of time.

@@ -1,0 +1,19 @@
+#L3 Single Routed OSPF
+---
+
+- name: Configure L3 single routed ospf
+  hosts: switch[0]
+
+
+  vars:
+    - ospf_csv_file: l3_ospf_with_vrrp_ospf.csv
+  tasks:
+    - name: Create vrouter
+      pn_vrouter_creation:
+        pn_loopback_ip: "10.20.30.1"
+        pn_switch_list: "{{ groups['switch'] }}"
+
+    - name: Configure OSPF
+      pn_ospf_configuration:
+        pn_switch_list: "{{ groups['switch'] }}"
+        pn_ospf_data: "{{ lookup('file', '{{ ospf_csv_file }}') }}"
