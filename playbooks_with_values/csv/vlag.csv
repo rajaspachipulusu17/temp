@@ -1,3 +1,0 @@
-#vlag_name, local_switch, local_port, peer_switch, peer_port
-#s1tos2-vlag, ugui-9kleaf3, s1-to-leafs, ugui-9kleaf4,s2-to-leafs
-s1tos2-vlag, hmplabpsq-we50100, s1-to-leafs, hmplabpsq-we50200,s2-to-leafs

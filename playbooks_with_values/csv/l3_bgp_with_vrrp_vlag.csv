@@ -1,2 +1,0 @@
-#vlag_name, local_switch, local_port, peer_switch, peer_port
-s1tos2-vlag, uans-9kleaf3, s1-to-leafs, uans-9kleaf4, s2-to-leafs

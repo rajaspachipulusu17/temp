@@ -1,3 +1,0 @@
-# vlan id, gateway ip, primary ip master, primary ip slave, active_switch
-105, 101.108.105.1/24, 101.108.105.2/24, 101.108.105.3/24, uans-9kleaf3
-107, 101.108.107.1/24, 101.108.107.2/24, 101.108.107.3/24, uans-9kleaf4

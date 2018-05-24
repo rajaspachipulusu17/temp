@@ -1,3 +1,0 @@
-#switch_name,vlan_id, list_of_ports
-uans-9kleaf3 ,4040, 5, 6, 7
-uans-9kleaf4 ,4044, 55, 56, 57
