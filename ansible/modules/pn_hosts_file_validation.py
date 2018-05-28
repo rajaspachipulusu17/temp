@@ -89,15 +89,10 @@ def main():
     line_count = 0
     switch_names = []
     host_ips = []
-    hosts_input = module.params['pn_hosts_file_data'].strip().split('\n')
+    hosts_input = module.params['pn_hosts_file_data'].strip().splitlines()
 
     if hosts_input:
-        hosts_file_data = []
-        hosts_file_data_temp = [i.strip() for i in hosts_input]
-
-        # To remove whitespace characters at the start and end of line
-        for row in hosts_file_data_temp:
-            hosts_file_data.append(row.strip())
+        hosts_file_data = hosts_input
 
         # [spine] and [leaf] group validation
         if '[spine]' not in hosts_file_data and '[third_party_spine]' not in hosts_file_data:
