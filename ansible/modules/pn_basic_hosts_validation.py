@@ -85,10 +85,11 @@ def main():
     line_count, switch_count = 0, 0
     switch_names, host_ips = [], []
 
-    hosts_input = module.params['pn_hosts_file_data'].strip().splitlines()
+    hosts_input = module.params['pn_hosts_file_data'].splitlines()
 
     if hosts_input:
-        hosts_file_data = hosts_input
+        hosts_file_data = [i.strip() for i in hosts_input]
+
         if '[switch]' not in hosts_file_data:
             output += '[switch] section is missing from the hosts file\n'
 

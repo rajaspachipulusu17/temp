@@ -89,10 +89,10 @@ def main():
     line_count = 0
     switch_names = []
     host_ips = []
-    hosts_input = module.params['pn_hosts_file_data'].strip().splitlines()
+    hosts_input = module.params['pn_hosts_file_data'].splitlines()
 
     if hosts_input:
-        hosts_file_data = hosts_input
+        hosts_file_data = [i.strip() for i in hosts_input]
 
         # [spine] and [leaf] group validation
         if '[spine]' not in hosts_file_data and '[third_party_spine]' not in hosts_file_data:
