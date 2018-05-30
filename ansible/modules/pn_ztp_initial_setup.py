@@ -702,7 +702,7 @@ def toggle_ports(module, curr_switch):
     for port_speed, port_info in g_toggle_ports.iteritems():
         if port_info['ports']:
             output += toggle(module, curr_switch, port_info['ports'], port_info['speeds'], port_speed,
-                   g_splitter_ports, g_quad_ports.get(port_speed, []))
+                             g_splitter_ports, g_quad_ports.get(port_speed, []))
 
     return output
 
