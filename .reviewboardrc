@@ -1,0 +1,3 @@
+REVIEWBOARD_URL = 'https://spook.pluribusnetworks.com:10443/'
+REPOSITORY = 'temp'
+TRACKING_BRANCH='upstream/master'
