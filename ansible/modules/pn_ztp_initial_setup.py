@@ -631,7 +631,7 @@ def toggle(module, curr_switch, toggle_ports, toggle_speed, port_speed, splitter
     cli += 'port %s ' % undiscovered_ports
     cli += 'speed %s enable' % port_speed
     run_cli(module, cli)
-    output += 'Toggle completed successfully ' % curr_switch
+    output += 'Toggle completed successfully '
 
     return output
 
