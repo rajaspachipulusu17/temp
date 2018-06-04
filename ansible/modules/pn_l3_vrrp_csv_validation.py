@@ -128,15 +128,12 @@ def main():
         argument_spec=dict(
             pn_csv_data=dict(required=True, type='str'),
             pn_leaf_list=dict(required=False, type='list'),
-            pn_addr_type=dict(required=False, type='str',
-                              choices=['ipv4', 'ipv6', 'ipv4_ipv6'], default='ipv4'),
         )
     )
 
     output = ''
     line_count = 0
     leaf_list = module.params['pn_leaf_list']
-    addr_type = module.params['pn_addr_type']
     vlan_list = []
     existing_ip = []
     csv_data = module.params['pn_csv_data'].replace(' ', '')
@@ -152,12 +149,15 @@ def main():
                 continue
             else:
                 elements = row.split(',')
-                elements = filter(None, elements)
+                #elements = filter(None, elements)
                 # Check number of elements per row.
                 vlan = elements.pop(0).strip()
                 ip = elements.pop(0).strip()
-                if addr_type == 'ipv4_ipv6':
-                    ip2 = elements.pop(0).strip()
+                ip2 = elements.pop(0).strip()
+                f = open("/tmp/ipv6.txt","a")
+                f.write("%s\n"%ip2)
+                f.close()
+                if ip2:
                     ip6 = ip2.split('/')
                     ipv6 = ip6[0]
                     subnet6 = ip6[1]
