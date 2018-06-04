@@ -149,14 +149,10 @@ def main():
                 continue
             else:
                 elements = row.split(',')
-                #elements = filter(None, elements)
                 # Check number of elements per row.
                 vlan = elements.pop(0).strip()
                 ip = elements.pop(0).strip()
                 ip2 = elements.pop(0).strip()
-                f = open("/tmp/ipv6.txt","a")
-                f.write("%s\n"%ip2)
-                f.close()
                 if ip2:
                     ip6 = ip2.split('/')
                     ipv6 = ip6[0]
