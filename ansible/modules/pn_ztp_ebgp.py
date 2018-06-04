@@ -341,7 +341,7 @@ def assign_ibgp_interface(module, dict_bgp_as):
     if addr_type == 'ipv4' or addr_type == 'ipv4_ipv6':
         available_ips_ipv4 = calculate_link_ip_addresses_ipv4(ibgp_ipv4_range, cidr_v4, subnet_v4)
 
-    if addr_type == 'ipv4_ipv6':
+    if addr_type == 'ipv4_ipv6' or addr_type == 'ipv6':
         get_count = 2 if subnet_v6 == '127' else 3
         available_ips_ipv6 = calculate_link_ip_addresses_ipv6(ibgp_ipv6_range, cidr_v6, subnet_v6,
                                                               get_count)
@@ -361,14 +361,16 @@ def assign_ibgp_interface(module, dict_bgp_as):
             cluster_node_1, cluster_node_2 = run_cli(module, cli).split()
 
             if cluster_node_1 not in spine_list and cluster_node_1 in leaf_list:
-                ipv4_1, ipv4_2 = available_ips_ipv4[0:2]
-                available_ips_ipv4.remove(ipv4_1)
-                available_ips_ipv4.remove(ipv4_2)
-                ip_list = available_ips_ipv6.next()
-                if subnet_v6 == '127':
-                    ipv6_1, ipv6_2 = ip_list[0:2]
-                else:
-                    ipv6_1, ipv6_2 = ip_list[1:3]
+                if addr_type == 'ipv4' or addr_type == 'ipv4_ipv6':
+                    ipv4_1, ipv4_2 = available_ips_ipv4[0:2]
+                    available_ips_ipv4.remove(ipv4_1)
+                    available_ips_ipv4.remove(ipv4_2)
+                if addr_type == 'ipv4_ipv6' or addr_type == 'ipv6':
+                    ip_list = available_ips_ipv6.next()
+                    if subnet_v6 == '127':
+                        ipv6_1, ipv6_2 = ip_list[0:2]
+                    else:
+                        ipv6_1, ipv6_2 = ip_list[1:3]
 
 
             remote_as = dict_bgp_as[cluster_node_1]
@@ -378,13 +380,19 @@ def assign_ibgp_interface(module, dict_bgp_as):
                                                          ipv4_1, ipv4_2, remote_as)
                     output += vrouter_interface_ibgp_add(module, cluster_node_2,
                                                          ipv4_2, ipv4_1, remote_as)
-                else:
+                elif addr_type == 'ipv4_ipv6':
                     output += vrouter_interface_ibgp_add(module, cluster_node_1,
                                                          ipv4_1, ipv4_2, remote_as,
                                                          ipv6_1, ipv6_2)
                     output += vrouter_interface_ibgp_add(module, cluster_node_2,
                                                          ipv4_2, ipv4_1, remote_as,
                                                          ipv6_2, ipv6_1)
+                else:
+                    output += vrouter_interface_ibgp_add(module, cluster_node_1,
+                                                         ipv6_1, ipv6_2, remote_as)
+                    output += vrouter_interface_ibgp_add(module, cluster_node_2,
+                                                         ipv6_2, ipv6_1, remote_as)
+
 
     else:
         output += ' No leaf clusters present to add iBGP \n'
@@ -418,7 +426,10 @@ def add_bgp_neighbor(module, dict_bgp_as):
 
         cli = clicopy
         cli += 'vrouter-interface-show vrouter-name %s ' % vrouter_leaf
-        cli += 'format l3-port,ip,ip2 parsable-delim ,'
+        cli += 'format l3-port,ip,'
+        if addr_type == 'ipv4_ipv6':
+            cli += 'ip2'
+        cli += ' parsable-delim ,'
         vr_leaf_out = run_cli(module, cli).strip().split('\n')
         for vr in vr_leaf_out:
             vr = vr.strip().split(',')
