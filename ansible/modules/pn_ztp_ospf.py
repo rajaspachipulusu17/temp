@@ -850,12 +850,12 @@ def main():
     # Exit the module and return the required JSON.
     module.exit_json(
         unreachable=False,
-        msg='eBGP/OSPF configuration succeeded',
+        msg='OSPF configuration succeeded',
         summary=results,
         exception='',
         failed=False,
         changed=True if True in CHANGED_FLAG else False,
-        task='Configure eBGP/OSPF'
+        task='Configure OSPF'
     )
 
 if __name__ == '__main__':
