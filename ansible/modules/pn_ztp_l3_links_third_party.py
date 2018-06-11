@@ -455,25 +455,14 @@ def finding_initial_ip(module, current_switch, leaf_list):
     spine_list = list(module.params['pn_spine_list'])
     routing_protocol = module.params['pn_routing_protocol']
     spine_list = [x.strip() for x in spine_list]
-    spines = ','.join(spine_list)
-    count_output = 0
-    count = 0
+    spine_count = len(spine_list)
 
-    cli = pn_cli(module)
-    clicopy = cli
+    if current_switch in leaf_list:
+        leaf_index = leaf_list.index(current_switch)
 
-    for leaf in leaf_list:
-        if leaf.strip() == current_switch.strip():
-            break
-        cli = clicopy
-        cli += " switch %s port-show hostname %s count-output | grep Count" %  (leaf, spines)
-        count_output += int(run_cli(module, cli).split(':')[1].strip())
-        count += 1
+    count_output = leaf_index * (spine_count * 2)
 
-    if routing_protocol == 'ospf':
-        return count_output 
-
-    return count_output - (count * 2)
+    return count_output
 
 
 def auto_configure_link_ips(module):
@@ -505,11 +494,7 @@ def auto_configure_link_ips(module):
                                                                   module.params['pn_cidr_ipv4'],
                                                                   subnet_ipv4)
 
-            diff = 32 - int(subnet_ipv4)
-            count = (1 << diff) - 4
-            count = (count + 2) if count > 0 else 2
-            count = count * count_output
-            available_ips_ipv4 = available_ips_ipv4[count:]
+            available_ips_ipv4 = available_ips_ipv4[count_output:]
 
         # Get the list of available link ips to assign.
         if addr_type == 'ipv6' or addr_type == 'ipv4_ipv6':
@@ -517,7 +502,8 @@ def auto_configure_link_ips(module):
             available_ips_ipv6 = calculate_link_ip_addresses_ipv6(module.params['pn_net_address_ipv6'],
                                                                   module.params['pn_cidr_ipv6'],
                                                                   subnet_ipv6, get_count)
-            for i in range(count_output):
+
+            for i in range(count_output - (leaf_list.index(current_switch) * 2)):
                 available_ips_ipv6.next()
 
         for spine in spine_list:
