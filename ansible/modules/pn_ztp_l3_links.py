@@ -438,8 +438,10 @@ def auto_configure_link_ips(module):
     spine_list = module.params['pn_spine_list']
     leaf_list = module.params['pn_leaf_list']
     addr_type = module.params['pn_addr_type']
-    subnet_ipv4 = module.params['pn_subnet_ipv4']
-    subnet_ipv6 = module.params['pn_subnet_ipv6']
+    if addr_type == 'ipv4' or addr_type == 'ipv4_ipv6':
+        subnet_ipv4 = module.params['pn_subnet_ipv4']
+    if addr_type == 'ipv6' or addr_type == 'ipv4_ipv6':
+        subnet_ipv6 = module.params['pn_subnet_ipv6']
     current_switch = module.params['pn_current_switch']
     output = ''
 

@@ -45,6 +45,26 @@ options:
         - Specify list of leaf hosts
       required: False
       type: list
+    pn_cidr_ipv4:
+      description:
+        - Specify CIDR value to be used in configuring IPv4 address.
+      required: False
+      type: str
+    pn_subnet_ipv4:
+      description:
+        - Specify subnet value to be used in configuring IPv4 address.
+      required: False
+      type: str
+    pn_cidr_ipv6:
+      description:
+        - Specify CIDR value to be used in configuring IPv6 address.
+      required: False
+      type: str
+    pn_subnet_ipv6:
+      description:
+        - Specify subnet value to be used in configuring IPv6 address.
+      required: False
+      type: str
     pn_routing_protocol:
       description:
         - Specify which routing protocol to specify.
@@ -660,13 +680,15 @@ def assign_leafcluster_ospf_interface(module):
     ip_1, ip_2, ip2_1, ip2_2 = '', '', '', ''
     spine_list = module.params['pn_spine_list']
     leaf_list = module.params['pn_leaf_list']
+    addr_type = module.params['pn_addr_type']
     iospf_v4_range = module.params['pn_iospf_ipv4_range']
-    cidr_v4 = int(module.params['pn_cidr_ipv4'])
+    if addr_type == 'ipv4' or addr_type == 'ipv4_ipv6':
+        cidr_v4 = int(module.params['pn_cidr_ipv4'])
     subnet_v4 = module.params['pn_subnet_ipv4']
     iospf_v6_range = module.params['pn_iospf_ipv6_range']
-    cidr_v6 = int(module.params['pn_cidr_ipv6'])
+    if addr_type == 'ipv6' or addr_type == 'ipv4_ipv6':
+        cidr_v6 = int(module.params['pn_cidr_ipv6'])
     subnet_v6 = module.params['pn_subnet_ipv6']
-    addr_type = module.params['pn_addr_type']
 
     cli = pn_cli(module)
     clicopy = cli
@@ -791,11 +813,11 @@ def main():
             pn_iospf_vlan=dict(required=False, type='str', default='4040'),
             pn_ospf_cost=dict(required=False, type='str', default='10000'),
             pn_iospf_ipv4_range=dict(required=False, type='str',
-                                   default='104.255.61.100'),
+                                   default=''),
             pn_cidr_ipv4=dict(required=False, type='str', default='24'),
             pn_subnet_ipv4=dict(required=False, type='str', default='31'),
             pn_iospf_ipv6_range=dict(required=False, type='str',
-                                   default='2620:0000:167F:b001::a0'),
+                                   default=''),
             pn_cidr_ipv6=dict(required=False, type='str', default='112'),
             pn_subnet_ipv6=dict(required=False, type='str', default='127'),
             pn_ospf_v4_area_id=dict(required=False, type='str', default='0'),
