@@ -1,5 +1,5 @@
 # This task will create vrouter on spine switches.
-# It uses pn_ztp_vrouter_setupthird_party.py module from library/ directory.
+# It uses pn_ztp_vrouter_setup_third_party.py module from library/ directory.
 # If the tasks fails then it will retry as specified by retries count.
 - name: Configure vrouter
   hosts: leaf
@@ -86,7 +86,7 @@
 
 
 # This task is to configure OSPF.
-# It uses pn_ztp_bgp_ospf_third_party.py module from library/ directory.
+# It uses pn_ztp_ospf_third_party.py module from library/ directory.
 - name: Configure OSPF
   hosts: leaf
   tags: iospf-leaf
