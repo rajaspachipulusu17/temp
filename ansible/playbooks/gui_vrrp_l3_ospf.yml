@@ -2,7 +2,7 @@
 # It uses pn_ztp_vrouter_setup.py module from library/ directory.
 # If the tasks fails then it will retry as specified by retries count.
 - name: Configure vrouter
-  hosts: spine
+  hosts: spine, leaf
   tags: vrouter
 
   tasks:

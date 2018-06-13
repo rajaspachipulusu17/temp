@@ -88,7 +88,7 @@
 # This task is to configure OSPF.
 # It uses pn_ztp_bgp_ospf_third_party.py module from library/ directory.
 - name: Configure OSPF
-  hosts: all
+  hosts: leaf
   tags: iospf-leaf
 
   tasks:
