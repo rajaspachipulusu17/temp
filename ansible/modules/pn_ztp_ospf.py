@@ -484,19 +484,19 @@ def add_ospf_neighbor(module, current_switch):
             cli += ' vrouter-ospf-show'
             cli += ' network %s format switch no-show-headers ' % ospf_network
             already_added = run_cli(module, cli).split()
-    
+
             if vrouter in already_added:
                 pass
             else:
                 if module.params['pn_bfd']:
                     output += configure_ospf_bfd(module, vrouter,
                                                  ip_switch)
-    
+
                 cli = clicopy
                 cli += ' vrouter-ospf-add vrouter-name ' + vrouter
                 cli += ' network %s ospf-area %s' % (ospf_network,
                                                      ospf_area_id)
-    
+
                 if 'Success' in run_cli(module, cli):
                     output += ' %s: Added OSPF neighbor %s to %s \n' % (
                         current_switch, ospf_network, vrouter
@@ -603,7 +603,7 @@ def vrouter_iospf_interface_add(module, switch_name, ip_addr, ip2_addr, ospf_are
         cli += ' vrouter-ospf-show'
         cli += ' network %s format switch no-show-headers ' % ip_addr
         already_added = run_cli(module, cli).split()
-    
+
         if vrouter in already_added:
             pass
         else:
@@ -614,7 +614,7 @@ def vrouter_iospf_interface_add(module, switch_name, ip_addr, ip2_addr, ospf_are
             cli = clicopy
             cli += ' vrouter-ospf-add vrouter-name ' + vrouter
             cli += ' network %s ospf-area %s' % (ip_addr, ospf_area_id)
-    
+
             if 'Success' in run_cli(module, cli):
                 output += ' %s: Added OSPF neighbor %s to %s \n' % (
                     switch_name, ip_addr, vrouter
@@ -791,8 +791,8 @@ def make_interface_passive(module, current_switch):
                 cli += ' nic %s ospf-passive-if ' % intf_index
                 run_cli(module, cli)
                 output += '%s: Added OSPF nic %s to %s \n' % (
-                vrname, intf_index, vrname
-            )
+                    vrname, intf_index, vrname
+                )
             CHANGED_FLAG.append(True)
 
     return output
@@ -813,11 +813,11 @@ def main():
             pn_iospf_vlan=dict(required=False, type='str', default='4040'),
             pn_ospf_cost=dict(required=False, type='str', default='10000'),
             pn_iospf_ipv4_range=dict(required=False, type='str',
-                                   default=''),
+                                     default=''),
             pn_cidr_ipv4=dict(required=False, type='str', default='24'),
             pn_subnet_ipv4=dict(required=False, type='str', default='31'),
             pn_iospf_ipv6_range=dict(required=False, type='str',
-                                   default=''),
+                                     default=''),
             pn_cidr_ipv6=dict(required=False, type='str', default='112'),
             pn_subnet_ipv6=dict(required=False, type='str', default='127'),
             pn_ospf_v4_area_id=dict(required=False, type='str', default='0'),
@@ -838,11 +838,6 @@ def main():
     current_switch = module.params['pn_current_switch']
     spine_list = module.params['pn_spine_list']
     message = ''
-
-    # Get the list of vrouter names.
-    cli = pn_cli(module)
-    cli += ' vrouter-show format name no-show-headers '
-    vrouter_names = run_cli(module, cli).split()
 
     if current_switch in spine_list and spine_list.index(current_switch) == 0:
         message += create_leaf_clusters(module)

@@ -14,7 +14,6 @@
       pn_l3_vrrp_csv_validation:
         pn_csv_data: "{{ lookup('file', '{{ csv_file }}') }}"
         pn_leaf_list: "{{ groups['leaf'] }}"
-        pn_addr_type: 'ipv4'
       register: csv_out
 
     # Playbook execution will fail if csv file is invalid.

@@ -25,10 +25,10 @@
 
 - name: Configure L3 VRRP with OSPF
   hosts: leaf
-  tags: l3-vrrp-l3
+  tags: l3-vrrp
 
   vars:
-  - csv_file: vrrp_verizon.csv
+  - csv_file: vrrp.csv
 
   tasks:
     # This task is to configure VRRP for Layer 3 fabric.
@@ -69,8 +69,8 @@
         pn_addr_type: 'ipv4_ipv6'                            # The type of address scheme to be used. Options: ipv4/dual_stack.
         pn_ipv4_start_address: "172.168.1.1"             # Ipv4 Network address required to calculate link IPs for layer3 fabric.
         pn_cidr_ipv4: "24"                              # Ipv4 CIDR required to calculate link IPs for layer3 fabric.
-        pn_subnet_ipv4: "31"                            # Ipv4 Subnet mask required to calculate link IPs for layer3 fabric.
-        pn_ipv6_start_address: '2620:0000:167F:b001::40'  # Ipv6 Network address required to calculate link IPs for layer3 fabric.
+        pn_subnet_ipv4: "30"                            # Ipv4 Subnet mask required to calculate link IPs for layer3 fabric.
+        pn_ipv6_start_address: '2620:0000:167F:d001::40'  # Ipv6 Network address required to calculate link IPs for layer3 fabric.
         pn_cidr_ipv6: "112"                             # ipv6 Subnet mask required to calculate link IPs for layer3 fabric.
         pn_subnet_ipv6: "127"                           # Ipv6 Subnet mask required to calculate link IPs for layer3 fabric.
         pn_if_nat_realm: 'internal'                     # Type of if_nat_realm. choices=['internal', 'external'], default='internal'
@@ -103,17 +103,17 @@
         pn_leaf_list: "{{ groups['leaf'] }}"               # List of all leaf switches mentioned under [leaf] grp in hosts file.
         pn_bfd: True                                    # Indicate if BFD config should be added to eBGP. Default: False.
         pn_routing_protocol: 'ospf'                        # Routing protocol to configure. Choices are ['ebgp', 'ospf']
+        pn_addr_type: 'ipv4_ipv6'                          # The type of address scheme to be used. Options: ipv4/dual_stack.
         pn_ospf_v4_area_id: "0"                      # Area id to configure for ospfv4. Default: 0
         pn_ospf_v6_area_id: "0.0.0.0"                  # Area id to configure for ospfv6. Default: 0.0.0.0
         pn_iospf_vlan: "4040"                             # Vlan for creating the interfaces between leaf clusters. Default:'4040'
-        pn_iospf_ipv4_range: "10.10.100.20"              # Ip range for creating the interfaces between leaf clusters.
+        pn_iospf_ipv4_range: "10.20.30.1"              # Ip range for creating the interfaces between leaf clusters.
         pn_cidr_ipv4: "24"                                 # subnet count for iospf ip range
         pn_subnet_ipv4: "31"                               # ipv4 subnet for iospf
         pn_iospf_ipv6_range: "2610:0000:167F:b001::a0"     # Ip range for creating the interfaces between leaf clusters.
         pn_cidr_ipv6: "112"                                # subnet count for iospf ip range
         pn_subnet_ipv6: "127"                              # ipv4 subnet for iospf
         pn_ospf_cost: "10000"                              # ospf cost. Default: '10000'.
-        pn_addr_type: 'ipv4_ipv6'                          # The type of address scheme to be used. Options: ipv4/dual_stack.
         pn_ospf_redistribute: "none"                  # Variable to configure ospf redistribute
         pn_pim_ssm: True                                  # pim-ssm variable for configuration
         pn_area_configure_flag: "singlearea"               # Varible to configure area choices=['singlearea', 'dualarea'], default='singlearea'

@@ -27,7 +27,7 @@ DOCUMENTATION = """
 ---
 module: pn_ztp_ospf_third_party
 author: 'Pluribus Networks (devops@pluribusnetworks.com)'
-short_description: Module to configure eBGP/OSPF.
+short_description: Module to configure OSPF.
 description: It performs following steps:
     OSPF:
       - Find area_id for leafs
@@ -45,6 +45,26 @@ options:
         - Specify list of leaf hosts
       required: False
       type: list
+    pn_cidr_ipv4:
+      description:
+        - Specify CIDR value to be used in configuring IPv4 address.
+      required: False
+      type: str
+    pn_subnet_ipv4:
+      description:
+        - Specify subnet value to be used in configuring IPv4 address.
+      required: False
+      type: str
+    pn_cidr_ipv6:
+      description:
+        - Specify CIDR value to be used in configuring IPv6 address.
+      required: False
+      type: str
+    pn_subnet_ipv6:
+      description:
+        - Specify subnet value to be used in configuring IPv6 address.
+      required: False
+      type: str
     pn_routing_protocol:
       description:
         - Specify which routing protocol to specify.
@@ -84,7 +104,7 @@ options:
 """
 
 EXAMPLES = """
-- name: Configure eBGP/OSPF
+- name: Configure OSPF
   pn_ztp_ospf_third_party:
     pn_spine_list: "{{ groups['spine'] }}"
     pn_leaf_list: "{{ groups['leaf'] }}"
@@ -149,52 +169,13 @@ def run_cli(module, cli):
             failed=True,
             exception='',
             summary=results,
-            task='Configure eBGP/OSPF',
+            task='Configure OSPF',
             stderr=err.strip(),
-            msg='eBGP/OSPF configuration failed',
+            msg='OSPF configuration failed',
             changed=False
         )
     else:
         return 'Success'
-
-
-def assign_router_id(module, vrouter_names):
-    """
-    Method to assign router-id to vrouters which is same as loopback ip.
-    :param module: The Ansible module to fetch input parameters.
-    :param vrouter_names: List of vrouter names.
-    :return: String describing if router id got assigned or not.
-    """
-    global CHANGED_FLAG
-    output = ''
-    cli = pn_cli(module)
-    clicopy = cli
-
-    if len(vrouter_names) > 0:
-        for vrouter in vrouter_names:
-            cli = clicopy
-            cli += ' vrouter-loopback-interface-show vrouter-name ' + vrouter
-            cli += ' format ip no-show-headers '
-            loopback_ip = run_cli(module, cli).split()
-
-            if 'Success' not in loopback_ip and len(loopback_ip) > 0:
-                loopback_ip.remove(vrouter)
-                cli = clicopy
-                cli += ' vrouter-modify name %s router-id %s ' % (
-                    vrouter, loopback_ip[0])
-
-                if 'Success' in run_cli(module, cli):
-                    cli = clicopy
-                    cli += ' vrouter-show name ' + vrouter
-                    cli += ' format location no-show-headers '
-                    switch = run_cli(module, cli).split()[0]
-
-                    output += ' %s: Added router id %s to %s \n' % (
-                        switch, loopback_ip[0], vrouter)
-
-                    CHANGED_FLAG.append(True)
-
-    return output
 
 
 def find_non_clustered_leafs(module):
@@ -703,13 +684,15 @@ def assign_leafcluster_ospf_interface(module):
     ip_1, ip_2, ip2_1, ip2_2 = '', '', '', ''
     spine_list = module.params['pn_spine_list']
     leaf_list = module.params['pn_leaf_list']
+    addr_type = module.params['pn_addr_type']
     iospf_v4_range = module.params['pn_iospf_ipv4_range']
-    cidr_v4 = int(module.params['pn_cidr_ipv4'])
+    if addr_type == 'ipv6' or addr_type == 'ipv4_ipv6':
+        cidr_v4 = int(module.params['pn_cidr_ipv4'])
     subnet_v4 = module.params['pn_subnet_ipv4']
     iospf_v6_range = module.params['pn_iospf_ipv6_range']
-    cidr_v6 = int(module.params['pn_cidr_ipv6'])
+    if addr_type == 'ipv6' or addr_type == 'ipv4_ipv6':
+        cidr_v6 = int(module.params['pn_cidr_ipv6'])
     subnet_v6 = module.params['pn_subnet_ipv6']
-    addr_type = module.params['pn_addr_type']
 
     cli = pn_cli(module)
     clicopy = cli
@@ -813,8 +796,8 @@ def make_interface_passive(module, current_switch):
                 cli += ' nic %s ospf-passive-if ' % intf_index
                 run_cli(module, cli)
                 output += '%s: Added OSPF nic %s to %s \n' % (
-                vrname, intf_index, vrname
-            )
+                    vrname, intf_index, vrname
+                )
             CHANGED_FLAG.append(True)
 
     return output
@@ -835,11 +818,11 @@ def main():
             pn_iospf_vlan=dict(required=False, type='str', default='4040'),
             pn_ospf_cost=dict(required=False, type='str', default='10000'),
             pn_iospf_ipv4_range=dict(required=False, type='str',
-                                   default='104.255.61.100'),
+                                     default=''),
             pn_cidr_ipv4=dict(required=False, type='str', default='24'),
             pn_subnet_ipv4=dict(required=False, type='str', default='31'),
             pn_iospf_ipv6_range=dict(required=False, type='str',
-                                   default='2620:0000:167F:b001::a0'),
+                                     default=''),
             pn_cidr_ipv6=dict(required=False, type='str', default='112'),
             pn_subnet_ipv6=dict(required=False, type='str', default='127'),
             pn_ospf_v4_area_id=dict(required=False, type='str', default='0'),
@@ -861,11 +844,6 @@ def main():
     spine_list = module.params['pn_spine_list']
     leaf_list = module.params['pn_leaf_list']
     message = ''
-
-    # Get the list of vrouter names.
-    cli = pn_cli(module)
-    cli += ' vrouter-show format name no-show-headers '
-    vrouter_names = run_cli(module, cli).split()
 
     if current_switch in leaf_list and leaf_list.index(current_switch) == 0:
         message += create_leaf_clusters(module)

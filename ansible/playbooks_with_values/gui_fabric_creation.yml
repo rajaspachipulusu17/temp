@@ -32,7 +32,7 @@
   tasks:
     - name: Disable STP, enable ports and create/join fabric
       pn_ztp_initial_setup:
-        pn_fabric_name: "test-fabric-ans-third-party"                          # Name of the fabric to create/join.
+        pn_fabric_name: "test-fabric-ans-third-party1"                          # Name of the fabric to create/join.
         pn_current_switch: "{{ inventory_hostname }}"                   # Name of the switch on which this task is currently getting executed.
         pn_spine_list: "{{ groups['spine'] }}"                          # List of all spine switches mentioned under [spine] grp in hosts file.
         pn_leaf_list: "{{ groups['leaf'] }}"                            # List of all leaf switches mentioned under [leaf] grp in hosts file.
@@ -46,7 +46,7 @@
         pn_gateway_ip: "10.110.0.1"                            # Specify GATEWAY-IP value to be assign if pn_static_setup is True.
         pn_dns_ip: "10.135.2.13"                                    # Specify DNS-IP value to be assign if pn_static_setup is True.
 #        pn_dns_secondary_ip: "{{ pn_dns_secondary_ip }}"                # Specify DNS-SECONDARY-IP value to be assign if pn_static_setup is True.
-        pn_domain_name: "{{ pn_domain_name }}"                          # Specify DOMAIN-NAME value to be assign if pn_static_setup is True.
+#        pn_domain_name: "{{ pn_domain_name }}"                          # Specify DOMAIN-NAME value to be assign if pn_static_setup is True.
 #        pn_ntp_server: "pluribus.com"                            # Specify NTP-SERVER value to be assign if pn_static_setup is True.
 #        pn_web_api: "{{ pn_web_api }}"                                  # Flag to enable web api. Default: True
 #        pn_stp: "{{ pn_stp }}"                                          # Specify True if you want to enable STP at the end. Default: False.
