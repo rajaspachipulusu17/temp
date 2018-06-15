@@ -62,7 +62,7 @@
 ## This task is to disable ports not in ZTP fabric on all switches.
 ## It uses pn_ztp_ports_disable.py module from library/ directory.
 #- name: Zero Touch Provisioning - Initial setup
-#  hosts: spine, leaf
+#  hosts: spine[0]
 #  tags: ports-disable
 #  serial: 1
 #
