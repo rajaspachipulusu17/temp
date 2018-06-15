@@ -98,29 +98,6 @@ def validate_switch_name(switch, leaf_list):
     else:
         return True
 
-def check_ip6(ip_addr, version):
-    """
-    Method to validate ip address.
-    :param ip_addr: ipv4/ipv6 address.
-    :param version: 4 or 6.
-    :return: 0 if valid switch name else 1.
-    """
-    if version == 6:
-        try:
-            socket.inet_pton(socket.AF_INET6, ip_addr)
-        except socket.error:
-            return 1
-        else:
-            return 0
-
-    if version == 4:
-        try:
-            socket.inet_aton(ip_addr)
-        except socket.error:
-            return 1
-        else:
-            return 0
-
 
 def main():
     """ This section is for arguments parsing """
@@ -149,70 +126,63 @@ def main():
                 continue
             else:
                 elements = row.split(',')
+                elements = filter(None, elements)
                 # Check number of elements per row.
-                vlan = elements.pop(0).strip()
-                ip = elements.pop(0).strip()
-                ip2 = elements.pop(0).strip()
-                if ip2:
-                    ip6 = ip2.split('/')
-                    ipv6 = ip6[0]
-                    subnet6 = ip6[1]
-                    res = check_ip6(ipv6, 6)
-                    if res:
-                        output += 'Invalid entry of ipv6 ip addrss {}\n'.format(
+                if len(elements) != 3 and len(elements) != 6:
+                    output += 'Invalid number of elements '
+                    output += 'at line number {}.\n'.format(line_count)
+                else:
+                    vlan = elements[0]
+                    ip = elements[1]
+                    switch1 = elements[2]
+                    clustered_leafs = []
+
+                    if not ip or not vlan or not switch1:
+                        output += 'Invalid entry at line number {}\n'.format(
                             line_count
                         )
-                    if (not subnet6.isdigit() or
-                            int(subnet6) not in range(1, 129)):
-                        raise socket.error
-                switch1 = elements.pop(0).strip()
-                clustered_leafs = []
-
-                if not ip or not vlan or not switch1:
-                    output += 'Invalid entry at line number {}\n'.format(
-                        line_count
-                    )
-                else:
-                    # VLAN ID validation
-                    if (not vlan.isdigit() or vlan in vlan_list or
-                            int(vlan) not in range(2, 4093)):
-                        output += 'Invalid vlan id {} '.format(vlan)
-                        output += 'at line number {}\n'.format(line_count)
                     else:
-                        vlan_list.append(vlan)
-
-                    # VRRP IP address validation
-                    try:
-                        if '/' not in ip:
-                            raise socket.error
+                        # VLAN ID validation
+                        if (not vlan.isdigit() or vlan in vlan_list or
+                                int(vlan) not in range(2, 4093)):
+                            output += 'Invalid vlan id {} '.format(vlan)
+                            output += 'at line number {}\n'.format(line_count)
                         else:
-                            address_with_subnet = ip.split('/')
-                            address = address_with_subnet[0]
-                            subnet = address_with_subnet[1]
-                            if (not subnet.isdigit() or
-                                    int(subnet) not in range(1, 33)):
+                            vlan_list.append(vlan)
+
+                        # VRRP IP address validation
+                        try:
+                            if '/' not in ip:
                                 raise socket.error
-                            if check_ip6(address, 4):
-                                output += 'Invalid entry of ipv4 ip addrss {}\n'.format(
-                                    line_count
-                                )
+                            else:
+                                address_with_subnet = ip.split('/')
+                                address = address_with_subnet[0]
+                                subnet = address_with_subnet[1]
+                                dot_count = address.count('.')
+                                if dot_count != 3 or address in existing_ip:
+                                    raise socket.error
 
-                            existing_ip.append(address)
-                    except socket.error:
-                        output += 'Invalid vrrp ip {} '.format(ip)
-                        output += 'at line number {}\n'.format(line_count)
+                                socket.inet_aton(address)
+                                if (not subnet.isdigit() or
+                                        int(subnet) not in range(1, 33)):
+                                    raise socket.error
 
-                    # Switch1 name validation
-                    if not validate_switch_name(switch1, leaf_list):
-                        output += 'Invalid switch name {} '.format(switch1)
-                        output += 'at line number {}\n'.format(line_count)
-                    else:
-                        clustered_leafs.append(switch1)
+                                existing_ip.append(address)
+                        except socket.error:
+                            output += 'Invalid vrrp ip {} '.format(ip)
+                            output += 'at line number {}\n'.format(line_count)
 
-                    if len(elements) == 3:
-                        switch2 = elements.pop(0).strip()
-                        vrrp_id = elements.pop(0).strip()
-                        active_switch = elements.pop(0).strip()
+                        # Switch1 name validation
+                        if not validate_switch_name(switch1, leaf_list):
+                            output += 'Invalid switch name {} '.format(switch1)
+                            output += 'at line number {}\n'.format(line_count)
+                        else:
+                            clustered_leafs.append(switch1)
+
+                    if len(elements) == 6:
+                        switch2 = elements[3]
+                        vrrp_id = elements[4]
+                        active_switch = elements[5]
 
                         if not switch2 or not vrrp_id or not active_switch:
                             output += 'Invalid entry at line number {}\n'.format(
