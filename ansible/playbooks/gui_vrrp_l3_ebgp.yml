@@ -14,7 +14,7 @@
     - name: Setup vrouter
       pn_ztp_vrouter_setup:
         pn_loopback_ip: "{{ pn_loopback_ip }}"              # Loopback network to confgure ipv4 loopback ips to vrouters.
-        pn_loopback_ip_v6: "{{ pn_loopback_ip_v6 }}"        # Loopback network to confgure ipv6 loopback ips vrouters.
+#        pn_loopback_ip_v6: "{{ pn_loopback_ip_v6 }}"        # Loopback network to confgure ipv6 loopback ips vrouters.
         pn_vrrp_id: "{{ pn_vrrp_id }}"                      # Vrrp-id for the vrouters
         pn_current_switch: "{{ inventory_hostname }}"       # The name of the current executing switch
         pn_spine_list: "{{ groups['spine'] }}"              # List of all spine switches mentioned under [spine] grp in hosts file.
@@ -72,9 +72,9 @@
         pn_cidr_ipv4: "{{ pn_cidr_ipv4 }}"                           # Ipv4 CIDR required to calculate link IPs for layer3 fabric.
         pn_subnet_ipv4: "{{ pn_subnet_ipv4 }}"                       # Ipv4 Subnet mask required to calculate link IPs for layer3 fabric.
         pn_if_nat_realm: "{{ pn_if_nat_realm }}"                     # Type of if_nat_realm. choices=['internal', 'external'], default='internal'
-        pn_ipv6_start_address: "{{ pn_ipv6_start_address }}"         # Ipv6 Network address required to calculate link IPs for layer3 fabric.
-        pn_cidr_ipv6: "{{ pn_cidr_ipv6 }}"                           # ipv6 Subnet mask required to calculate link IPs for layer3 fabric.
-        pn_subnet_ipv6: "{{ pn_subnet_ipv6 }}"                       # Ipv6 Subnet mask required to calculate link IPs for layer3 fabric.
+#        pn_ipv6_start_address: "{{ pn_ipv6_start_address }}"         # Ipv6 Network address required to calculate link IPs for layer3 fabric.
+#        pn_cidr_ipv6: "{{ pn_cidr_ipv6 }}"                           # ipv6 Subnet mask required to calculate link IPs for layer3 fabric.
+#        pn_subnet_ipv6: "{{ pn_subnet_ipv6 }}"                       # Ipv6 Subnet mask required to calculate link IPs for layer3 fabric.
         pn_bfd: "{{ pn_bfd }}"                                       # Flag to indicate if BFD config should be added to vrouter interfaces. Default: False.
         pn_bfd_min_rx: "{{ pn_bfd_min_rx }}"                         # BFD-MIN-RX value required for adding BFD configuration to vrouter interfaces.
         pn_bfd_multiplier: "{{ pn_bfd_multiplier }}"                 # BFD_MULTIPLIER value required for adding BFD configuration to vrouter interfaces.
@@ -107,9 +107,9 @@
         pn_ibgp_ipv4_range: "{{ pn_ibgp_ipv4_range }}"     # Ip range for creating the interfaces between leaf clusters.
         pn_cidr_ipv4: "{{ pn_cidr_ipv4 }}"                 # subnet count for iospf ip range
         pn_subnet_ipv4: "{{ pn_subnet_ipv4 }}"             # ipv4 subnet for iospf
-        pn_ibgp_ipv6_range: "{{ pn_ibgp_ipv6_range }}"     # Ip range for creating the interfaces between leaf clusters.
-        pn_cidr_ipv6: "{{ pn_cidr_ipv6 }}"                 # subnet count for iospf ip range
-        pn_subnet_ipv6: "{{ pn_subnet_ipv6 }}"             # ipv4 subnet for iospf
+#        pn_ibgp_ipv6_range: "{{ pn_ibgp_ipv6_range }}"     # Ip range for creating the interfaces between leaf clusters.
+#        pn_cidr_ipv6: "{{ pn_cidr_ipv6 }}"                 # subnet count for iospf ip range
+#        pn_subnet_ipv6: "{{ pn_subnet_ipv6 }}"             # ipv4 subnet for iospf
         pn_bgp_redistribute: "{{ pn_bgp_redistribute }}"   # BGP-REDISTRIBUTE value to be assigned to vrouters. Choices are [none, static, connected, rip, ospf]. Default: connected
         pn_bgp_as_range: "{{ pn_bgp_as_range }}"           # BGP-AS-RANGE value to be assigned to vrouters. Default: 65000
         pn_ibgp_vlan: "{{ pn_ibgp_vlan }}"                 # iBGP vlan value to be assigned to vrouter interfaces. Default 4040
