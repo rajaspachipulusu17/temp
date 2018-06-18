@@ -103,7 +103,7 @@
         pn_bfd: "{{ pn_bfd }}"                             # Indicate if BFD config should be added to eBGP. Default: False.
         pn_routing_protocol: 'ebgp'                        # Routing protocol to configure. Choices are ['ebgp']
         pn_bgp_maxpath: "{{ pn_bgp_maxpath }}"             # BGP-MAXPATH value to be assigned to vrouters. Default: 16
-        pn_address_type: "{{ pn_address_type }}"           # Specify address type for ebgp. Choices are ["ipv4","ipv4_ipv6"].
+        pn_addr_type: "{{ pn_addr_type }}"                 # Specify address type for ebgp. Choices are ["ipv4","ipv4_ipv6"].
         pn_ibgp_ipv4_range: "{{ pn_ibgp_ipv4_range }}"     # Ip range for creating the interfaces between leaf clusters.
         pn_cidr_ipv4: "{{ pn_cidr_ipv4 }}"                 # subnet count for iospf ip range
         pn_subnet_ipv4: "{{ pn_subnet_ipv4 }}"             # ipv4 subnet for iospf

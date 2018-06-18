@@ -347,7 +347,7 @@ def assign_ibgp_interface(module, dict_bgp_as):
 
     spine_list = module.params['pn_spine_list']
     leaf_list = module.params['pn_leaf_list']
-    addr_type = module.params['pn_address_type']
+    addr_type = module.params['pn_addr_type']
     ibgp_ipv4_range = module.params['pn_ibgp_ipv4_range']
     if addr_type == 'ipv4' or addr_type == 'ipv4_ipv6':
         cidr_v4 = int(module.params['pn_cidr_ipv4'])
@@ -432,7 +432,7 @@ def add_bgp_neighbor(module, dict_bgp_as):
     global CHANGED_FLAG
     output = ''
     cli = pn_cli(module)
-    addr_type = module.params['pn_address_type']
+    addr_type = module.params['pn_addr_type']
     clicopy = cli
 
     spine_dict = dict()
@@ -760,7 +760,7 @@ def main():
         argument_spec=dict(
             pn_spine_list=dict(required=False, type='list'),
             pn_leaf_list=dict(required=False, type='list'),
-            pn_address_type=dict(required=True, type='str',
+            pn_addr_type=dict(required=True, type='str',
                                  choices=['ipv4', 'ipv4_ipv6', 'ipv6']),
             pn_bgp_as_range=dict(required=False, type='str', default='65000'),
             pn_bgp_redistribute=dict(required=False, type='str',
