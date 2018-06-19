@@ -73,12 +73,12 @@ options:
       required: False
       type: str
       choices: ['ebgp']
-    pn_ibgp_ip_range:
+    pn_ibgp_ipv4_range:
       description:
         - Specify ip range for ibgp interface.
       required: False
       type: str
-      default: '75.75.75.0/30'
+      default: '75.75.75.0/24'
     pn_ibgp_vlan:
       description:
         - Specify vlan for ibgp interface.
@@ -701,7 +701,7 @@ def main():
                                      default='connected'),
             pn_bgp_maxpath=dict(required=False, type='str', default='16'),
             pn_ibgp_ipv4_range=dict(required=False, type='str',
-                                    default=''),
+                                    default='75.75.75.1'),
             pn_cidr_ipv4=dict(required=False, type='str', default='24'),
             pn_subnet_ipv4=dict(required=False, type='str', default='31'),
             pn_ibgp_ipv6_range=dict(required=False, type='str',
@@ -709,8 +709,6 @@ def main():
             pn_cidr_ipv6=dict(required=False, type='str', default='112'),
             pn_subnet_ipv6=dict(required=False, type='str', default='127'),
             pn_bfd=dict(required=False, type='bool', default=False),
-            pn_ibgp_ip_range=dict(required=False, type='str',
-                                  default='75.75.75.0/24'),
             pn_ibgp_vlan=dict(required=False, type='str', default='4040'),
             pn_routing_protocol=dict(required=False, type='str',
                                      choices=['ebgp'], default='ebgp'),

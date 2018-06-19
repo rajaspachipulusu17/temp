@@ -93,7 +93,7 @@ options:
       required: False
       type: str
       choices: ['ebgp']
-    pn_ibgp_ip_range:
+    pn_ibgp_ipv4_range:
       description:
         - Specify ip range for ibgp interface.
       required: False
@@ -339,11 +339,8 @@ def assign_ibgp_interface(module, dict_bgp_as):
     :return: The output of vrouter_interface_ibgp_add() method.
     """
     output = ''
-    ibgp_ip_range = module.params['pn_ibgp_ip_range']
     spine_list = module.params['pn_spine_list']
     leaf_list = module.params['pn_leaf_list']
-    subnet_count = 0
-    supernet = 30
 
     spine_list = module.params['pn_spine_list']
     leaf_list = module.params['pn_leaf_list']
@@ -768,15 +765,14 @@ def main():
                                               'rip', 'ospf'],
                                      default='connected'),
             pn_bgp_maxpath=dict(required=False, type='str', default='16'),
-            pn_ibgp_ipv4_range=dict(required=False, type='str'),
+            pn_ibgp_ipv4_range=dict(required=False, type='str',
+                                  default='75.75.75.1'),
             pn_cidr_ipv4=dict(required=False, type='str', default='24'),
             pn_subnet_ipv4=dict(required=False, type='str', default='31'),
             pn_ibgp_ipv6_range=dict(required=False, type='str'),
             pn_cidr_ipv6=dict(required=False, type='str', default='112'),
             pn_subnet_ipv6=dict(required=False, type='str', default='127'),
             pn_bfd=dict(required=False, type='bool', default=False),
-            pn_ibgp_ip_range=dict(required=False, type='str',
-                                  default='75.75.75.0/24'),
             pn_ibgp_vlan=dict(required=False, type='str', default='4040'),
             pn_routing_protocol=dict(required=False, type='str',
                                      choices=['ebgp'], default='ebgp'),
