@@ -341,9 +341,6 @@ def assign_ibgp_interface(module, dict_bgp_as):
     output = ''
     spine_list = module.params['pn_spine_list']
     leaf_list = module.params['pn_leaf_list']
-
-    spine_list = module.params['pn_spine_list']
-    leaf_list = module.params['pn_leaf_list']
     addr_type = module.params['pn_addr_type']
     ibgp_ipv4_range = module.params['pn_ibgp_ipv4_range']
     if addr_type == 'ipv4' or addr_type == 'ipv4_ipv6':
