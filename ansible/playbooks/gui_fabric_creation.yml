@@ -59,20 +59,20 @@
         seconds: 2                                                      # Pause playbook execution for specified amount of time.
 
 
-## This task is to disable ports not in ZTP fabric on all switches.
-## It uses pn_ztp_ports_disable.py module from library/ directory.
-#- name: Zero Touch Provisioning - Initial setup
-#  hosts: spine[0]
-#  tags: ports-disable
-#  serial: 1
-#
-#  tasks:
-#    - name: Disable STP, enable ports and create/join fabric
-#      pn_ztp_ports_disable:
-#        pn_current_switch: "{{ inventory_hostname }}"           # Active switch on which commands are executed.
-#        pn_port_disable: "{{ pn_port_disable }}"                # Ports to be disable are not. Bool: True/False
-#      register: ztp_port_disable                                # Variable to hold/register output of the above tasks.
-#      until:  ztp_port_disable.failed != true                   # If error pops up it will retry the code
-#      retries: 3                                                # This is the retries count
-#      delay: 1
+# This task is to disable ports not in ZTP fabric on all switches.
+# It uses pn_ztp_ports_disable.py module from library/ directory.
+- name: Zero Touch Provisioning - Initial setup
+  hosts: spine[0]
+  tags: ports-disable
+  serial: 1
+
+  tasks:
+    - name: Disable STP, enable ports and create/join fabric
+      pn_ztp_ports_disable:
+        pn_current_switch: "{{ inventory_hostname }}"           # Active switch on which commands are executed.
+        pn_port_disable: True                                   # Ports to be disable are not. Bool: True/False
+      register: ztp_port_disable                                # Variable to hold/register output of the above tasks.
+      until:  ztp_port_disable.failed != true                   # If error pops up it will retry the code
+      retries: 3                                                # This is the retries count
+      delay: 1
 
