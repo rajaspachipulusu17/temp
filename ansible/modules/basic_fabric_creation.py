@@ -388,7 +388,7 @@ def enable_ports(module):
         out_40g = run_cli(module, cli)
         out_remove10g = []
 
-        if len(out_40g) > 0 and out_40g != 'Success':
+        if len(out_40g) > 0 and out_40g != None:
             out_40g = out_40g.split()
             out_40g = list(set(out_40g))
             if len(out_40g) > 0:
@@ -435,6 +435,42 @@ def enable_web_api(module):
     cli = pn_cli(module)
     cli += ' admin-service-modify web if mgmt '
     run_cli(module, cli)
+
+
+def ports_modify_jumbo(module, modify_flag):
+    """
+    Method to enable/disable Jumbo flag on a switch ports.
+    :param module: The Ansible module to fetch input parameters.
+    :param modify_flag: Enable/disable flag to set.
+    :return: The output of run_cli() method.
+    """
+    cli = pn_cli(module)
+    clicopy = cli
+    trunk_ports = []
+    cli += ' switch-local port-show format port,trunk status trunk no-show-headers'
+    cli_out = run_cli(module, cli)
+    if cli_out is None:
+        pass
+    else:
+        cli_out = cli_out.strip().split('\n')
+        for output in cli_out:
+            output = output.strip().split()
+            port, trunk_name = output[0], output[1]
+            trunk_ports.append(port)
+            cli = clicopy
+            cli += 'trunk-modify name %s jumbo ' % trunk_name
+            run_cli(module, cli)
+
+    cli = clicopy
+    cli += ' switch-local port-config-show format port no-show-headers'
+    ports = run_cli(module, cli).split()
+    ports_to_modify = list(set(ports) - set(trunk_ports))
+    ports_to_modify = ','.join(ports_to_modify)
+    cli = clicopy
+    cli += ' switch-local port-config-modify port %s %s' \
+           % (ports_to_modify, modify_flag)
+
+    return run_cli(module, cli)
 
 
 def configure_control_network(module):
@@ -709,6 +745,15 @@ def main():
 
     # Update switch setup values
     make_switch_setup_static(module)
+
+    # Enable jumbo flag
+    if ports_modify_jumbo(module, 'jumbo') is None:
+        CHANGED_FLAG.append(True)
+        results.append({
+            'switch': switch,
+            'output': 'Jumbo enabled in ports'
+        })
+
 
     # Enable web api
     enable_web_api(module)
