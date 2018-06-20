@@ -1,3 +1,3 @@
-490, 104.255.61.129/29, 2620:0000:167F:b002::1/120, uans-9kleaf1, uans-9kleaf2, 15, uans-9kleaf1
-244, 104.255.62.161/27, 2620:0:167f:b015::1/64, uans-9kleaf1, uans-9kleaf2, 15, uans-9kleaf1
-490, 104.255.61.137/29, 2620:0000:167F:b002::101/120, uans-9kleaf3, uans-9kleaf4, 15, uans-9kleaf3
+490, 104.255.61.129/29, uans-9kleaf1, uans-9kleaf2, 15, uans-9kleaf1
+244, 104.255.62.161/27, uans-9kleaf1, uans-9kleaf2, 15, uans-9kleaf1
+491, 104.255.61.137/29, uans-9kleaf3, uans-9kleaf4, 15, uans-9kleaf3
