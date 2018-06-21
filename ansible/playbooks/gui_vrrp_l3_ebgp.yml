@@ -18,6 +18,7 @@
         pn_spine_list: "{{ groups['spine'] }}"              # List of all spine switches mentioned under [spine] grp in hosts file.
         pn_leaf_list: "{{ groups['leaf'] }}"                # List of all leaf switches mentioned under [leaf] grp in hosts file.
         pn_pim_ssm: "{{ pn_pim_ssm }}"                      # Variable to specify pim_ssm for ospf
+        pn_ospf_redistribute: "{{ pn_ospf_redistribute }}"  # Variable to configure ospf redistribute
       register: vrouter_out                                 # Variable to hold/register output of the above tasks.
       until: vrouter_out.failed != true                     # If the above code fails it will retry the code
       retries: 3                                            # This is the retries count
@@ -40,6 +41,7 @@
         pn_current_switch: "{{ inventory_hostname }}"           # Name of the switch on which this task is currently getting executed.
         pn_pim_ssm: "{{ pn_pim_ssm }}"                          # Variable to specify pim_ssm for ospf
         pn_jumbo_frames: "{{ pn_jumbo_frames }}"                # Flag to assign mtu Default: False.
+        pn_ospf_redistribute: "{{ pn_ospf_redistribute }}"      # Variable to configure ospf redistribute
       register: vrrp_out                                        # Variable to hold/register output of the above tasks.
       until:  vrrp_out.failed != true                           # If error pops up it will retry the code
       retries: 3                                                # This is the retries count
@@ -100,6 +102,7 @@
         pn_bgp_as_range: "{{ pn_bgp_as_range }}"           # BGP-AS-RANGE value to be assigned to vrouters. Default: 65000
         pn_ibgp_vlan: "{{ pn_ibgp_vlan }}"                 # iBGP vlan value to be assigned to vrouter interfaces. Default 4040
         pn_pim_ssm: "{{ pn_pim_ssm }}"                     # Variable to specify pim_ssm for ospf
+        pn_bgp_redistribute: "{{ pn_bgp_redistribute }}"   # BGP-REDISTRIBUTE value to be assigned to vrouters. Choices are [none, static, connected, rip, ospf]. Default: none
         pn_jumbo_frames: "{{ pn_jumbo_frames }}"           # Flag to assign mtu Default: False.
       register: bgp_out                                    # Variable to hold/register output of the above tasks.
       until: bgp_out.failed != true                        # If the above code fails it will retry the code

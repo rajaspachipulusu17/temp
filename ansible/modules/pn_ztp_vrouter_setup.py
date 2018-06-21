@@ -285,7 +285,7 @@ def main():
             pn_pim_ssm=dict(required=False, type='bool', default=False),
             pn_ospf_redistribute=dict(required=False, type='str',
                                       choices=['none', 'static', 'connected',
-                                               'rip', 'ospf'],
+                                               'rip', 'bgp'],
                                       default='none'),
             pn_bgp_redistribute=dict(required=False, type='str',
                                       choices=['none', 'static', 'connected',

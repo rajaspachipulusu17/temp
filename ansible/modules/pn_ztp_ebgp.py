@@ -755,7 +755,7 @@ def main():
             pn_spine_list=dict(required=False, type='list'),
             pn_leaf_list=dict(required=False, type='list'),
             pn_addr_type=dict(required=True, type='str',
-                                 choices=['ipv4', 'ipv4_ipv6', 'ipv6']),
+                                 choices=['ipv4', 'ipv4_ipv6', 'ipv6'], default='ipv4'),
             pn_bgp_as_range=dict(required=False, type='str', default='65000'),
             pn_bgp_redistribute=dict(required=False, type='str',
                                      choices=['none', 'static', 'connected',

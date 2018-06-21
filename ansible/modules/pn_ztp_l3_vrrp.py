@@ -492,7 +492,7 @@ def main():
             pn_ospf_area_id=dict(required=False, type='str', default='0'),
             pn_ospf_redistribute=dict(required=False, type='str',
                                       choices=['none', 'static', 'connected',
-                                               'rip'],
+                                               'rip', 'bgp'],
                                       default='none'),
             pn_addr_type=dict(required=False, type='str',
                               choices=['ipv4', 'ipv6', 'ipv4_ipv6'],
