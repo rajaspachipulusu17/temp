@@ -17,6 +17,7 @@
         pn_current_switch: "{{ inventory_hostname }}"       # The name of the current executing switch
         pn_spine_list: "{{ groups['spine'] }}"              # List of all spine switches mentioned under [spine] grp in hosts file.
         pn_leaf_list: "{{ groups['leaf'] }}"                # List of all leaf switches mentioned under [leaf] grp in hosts file.
+        pn_pim_ssm: "{{ pn_pim_ssm }}"                      # Variable to specify pim_ssm for ospf
       register: vrouter_out                                 # Variable to hold/register output of the above tasks.
       until: vrouter_out.failed != true                     # If the above code fails it will retry the code
       retries: 3                                            # This is the retries count
@@ -37,6 +38,8 @@
         pn_leaf_list: "{{ groups['leaf'] }}"                    # List of all leaf switches mentioned under [leaf] grp in hosts file.
         pn_csv_data: "{{ lookup('file', '{{ csv_file }}') }}"   # Csv file containing L3 vrrp data.
         pn_current_switch: "{{ inventory_hostname }}"           # Name of the switch on which this task is currently getting executed.
+        pn_pim_ssm: "{{ pn_pim_ssm }}"                          # Variable to specify pim_ssm for ospf
+        pn_jumbo_frames: "{{ pn_jumbo_frames }}"                # Flag to assign mtu Default: False.
       register: vrrp_out                                        # Variable to hold/register output of the above tasks.
       until:  vrrp_out.failed != true                           # If error pops up it will retry the code
       retries: 3                                                # This is the retries count
@@ -68,6 +71,8 @@
         pn_bfd_multiplier: "{{ pn_bfd_multiplier }}"                 # BFD_MULTIPLIER value required for adding BFD configuration to vrouter interfaces.
         pn_update_fabric_to_inband: "{{ pn_update_fabric_to_inband }}"         # Flag to indicate if fabric network should be updated to in-band. Default: False.
         pn_stp: "{{ pn_stp }}"                                       # Flag to enable STP (spanning tree protocol). Default: False.
+        pn_pim_ssm: "{{ pn_pim_ssm }}"                               # Variable to specify pim_ssm for ospf
+        pn_jumbo_frames: "{{ pn_jumbo_frames }}"                     # Flag to assign mtu Default: False.
       register: ztp_l3_out                                           # Variable to hold/register output of the above tasks.
       until:  ztp_l3_out.failed != true                              # If error pops up it will retry the code
       retries: 3                                                     # This is the retries count
@@ -94,6 +99,8 @@
         pn_subnet_ipv4: "{{ pn_subnet_ipv4 }}"             # ipv4 subnet for iospf
         pn_bgp_as_range: "{{ pn_bgp_as_range }}"           # BGP-AS-RANGE value to be assigned to vrouters. Default: 65000
         pn_ibgp_vlan: "{{ pn_ibgp_vlan }}"                 # iBGP vlan value to be assigned to vrouter interfaces. Default 4040
+        pn_pim_ssm: "{{ pn_pim_ssm }}"                     # Variable to specify pim_ssm for ospf
+        pn_jumbo_frames: "{{ pn_jumbo_frames }}"           # Flag to assign mtu Default: False.
       register: bgp_out                                    # Variable to hold/register output of the above tasks.
       until: bgp_out.failed != true                        # If the above code fails it will retry the code
       retries: 3                                           # This is the retries count
