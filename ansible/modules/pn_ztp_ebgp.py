@@ -759,7 +759,7 @@ def main():
             pn_bgp_as_range=dict(required=False, type='str', default='65000'),
             pn_bgp_redistribute=dict(required=False, type='str',
                                      choices=['none', 'static', 'connected',
-                                              'rip', 'bgp'],
+                                              'rip', 'ospf'],
                                      default='none'),
             pn_bgp_maxpath=dict(required=False, type='str', default='16'),
             pn_ibgp_ipv4_range=dict(required=False, type='str',
