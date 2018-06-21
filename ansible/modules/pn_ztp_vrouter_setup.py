@@ -277,19 +277,20 @@ def main():
     """ This section is for arguments parsing """
     module = AnsibleModule(
         argument_spec=dict(
-            pn_loopback_ip=dict(required=False, type='str', default=''),
-            pn_vrrp_id=dict(required=False, type='str', default=''),
+            pn_loopback_ip=dict(required=False, type='str', default='109.109.109.1/32'),
+            pn_vrrp_id=dict(required=False, type='str', default='18'),
             pn_current_switch=dict(required=False, type='str'),
             pn_spine_list=dict(required=True, type='list'),
             pn_leaf_list=dict(required=True, type='list'),
-            pn_pim_ssm=dict(required=False, type='bool'),
+            pn_pim_ssm=dict(required=False, type='bool', default=False),
             pn_ospf_redistribute=dict(required=False, type='str',
                                       choices=['none', 'static', 'connected',
                                                'rip', 'ospf'],
                                       default='none'),
             pn_bgp_redistribute=dict(required=False, type='str',
                                       choices=['none', 'static', 'connected',
-                                               'rip', 'ospf']),
+                                               'rip', 'ospf'],
+                                      default='none'),
             pn_bgp_as=dict(required=False, type='str'),
             pn_loopback_ip_v6=dict(required=False, type='str'),
         )
