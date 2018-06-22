@@ -68,7 +68,6 @@
         pn_bfd_min_rx: "{{ pn_bfd_min_rx }}"                            # BFD-MIN-RX value required for adding BFD configuration to vrouter interfaces.
         pn_bfd_multiplier: "{{ pn_bfd_multiplier }}"                    # BFD_MULTIPLIER value required for adding BFD configuration to vrouter interfaces.
         pn_update_fabric_to_inband: "{{ pn_update_fabric_to_inband }}"  # Flag to indicate if fabric network should be updated to in-band. Default: False.
-        pn_pim_ssm: "{{ pn_pim_ssm }}"                                  # Variable to specify pim_ssm for ospf
         pn_jumbo_frames: "{{ pn_jumbo_frames }}"                        # Flag to assign mtu Default: False.
         pn_stp: "{{ pn_stp }}"                                          # Flag to enable STP (spanning tree protocol). Default: False.
       register: ztp_l3_out                                              # Variable to hold/register output of the above tasks.
@@ -110,6 +109,3 @@
 
     - pause:
         seconds: 2                                                # Pause playbook execution for specified amount of time.
-
-
-
