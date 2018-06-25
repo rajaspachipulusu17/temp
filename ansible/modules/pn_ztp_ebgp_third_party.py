@@ -91,6 +91,12 @@ options:
       required: False
       type: bool
       default: False
+    pn_jumbo_frames:
+      description:
+        - Flag to assign mtu
+      required: False
+      default: False
+      type: bool
 """
 
 EXAMPLES = """
@@ -259,6 +265,8 @@ def vrouter_interface_ibgp_add(module, switch_name, interface_ip, neighbor_ip,
         cli += 'ip %s ' % interface_ip
         if interface_ipv6:
             cli += 'ip2 %s ' % interface_ipv6
+        if module.params['pn_jumbo_frames'] == True:
+            cli += ' mtu 9216'
         cli += 'vlan %s ' % vlan_id
         run_cli(module, cli)
 
@@ -704,6 +712,7 @@ def main():
                                     default='75.75.75.1'),
             pn_cidr_ipv4=dict(required=False, type='str', default='24'),
             pn_subnet_ipv4=dict(required=False, type='str', default='31'),
+            pn_jumbo_frames=dict(required=False, type='bool', default=False),
             pn_ibgp_ipv6_range=dict(required=False, type='str',
                                     default=''),
             pn_cidr_ipv6=dict(required=False, type='str', default='112'),
