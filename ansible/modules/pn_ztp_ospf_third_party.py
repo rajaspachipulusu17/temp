@@ -686,7 +686,7 @@ def assign_leafcluster_ospf_interface(module):
     leaf_list = module.params['pn_leaf_list']
     addr_type = module.params['pn_addr_type']
     iospf_v4_range = module.params['pn_iospf_ipv4_range']
-    if addr_type == 'ipv6' or addr_type == 'ipv4_ipv6':
+    if addr_type == 'ipv4' or addr_type == 'ipv4_ipv6':
         cidr_v4 = int(module.params['pn_cidr_ipv4'])
     subnet_v4 = module.params['pn_subnet_ipv4']
     iospf_v6_range = module.params['pn_iospf_ipv6_range']
