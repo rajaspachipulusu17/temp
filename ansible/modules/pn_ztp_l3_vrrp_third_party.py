@@ -184,6 +184,8 @@ def create_vrouter_interface(module, switch, vlan_id, vrrp_id,
             cli += ' ip2 ' + list_ips[1]
         if module.params['pn_jumbo_frames'] == True:
             cli += ' mtu 9216'
+        if module.params['pn_pim_ssm'] == True:
+            cli += ' pim-cluster '
         run_cli(module, cli)
         output = ' %s: Added vrouter interface with ip %s' % (
             switch, list_ips[0]
@@ -222,6 +224,8 @@ def create_vrouter_interface(module, switch, vlan_id, vrrp_id,
                                                            vrrp_priority)
             if module.params['pn_jumbo_frames'] == True:
                 cli += ' mtu 9216'
+            if module.params['pn_pim_ssm'] == True:
+                cli += ' pim-cluster '
             run_cli(module, cli)
             CHANGED_FLAG.append(True)
             output += ' %s: Added vrouter interface with ip %s to %s \n' % (
@@ -334,6 +338,8 @@ def configure_vrrp_for_non_cluster_leafs(module, ip, ip_v6, non_cluster_leaf, vl
             cli += ' ip2 ' + ip_v6
         if module.params['pn_jumbo_frames'] == True:
             cli += ' mtu 9216'
+        if module.params['pn_pim_ssm'] == True:
+            cli += ' pim-cluster '
         run_cli(module, cli)
         CHANGED_FLAG.append(True)
         output = ' %s: Added vrouter interface with ip %s' % (
@@ -473,7 +479,7 @@ def main():
             pn_leaf_list=dict(required=False, type='list'),
             pn_csv_data=dict(required=True, type='str'),
             pn_current_switch=dict(required=True, type='str'),
-            pn_pim_ssm=dict(required=False, type='bool', , deafult=False),
+            pn_pim_ssm=dict(required=False, type='bool', default=False),
             pn_jumbo_frames=dict(required=False, type='bool', default=False),
             pn_ospf_area_id=dict(required=False, type='str', default='0'),
             pn_addr_type=dict(required=False, type='str',

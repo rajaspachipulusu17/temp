@@ -184,6 +184,8 @@ def create_vrouter_interface(module, switch, vlan_id, vrrp_id,
             cli += ' ip2 ' + list_ips[1]
         if module.params['pn_jumbo_frames'] == True:
             cli += ' mtu 9216'
+        if module.params['pn_pim_ssm'] == True:
+            cli += ' pim-cluster '
         run_cli(module, cli)
         output = ' %s: Added vrouter interface with ip %s' % (
             switch, list_ips[0]
@@ -222,6 +224,8 @@ def create_vrouter_interface(module, switch, vlan_id, vrrp_id,
                                                            vrrp_priority)
             if module.params['pn_jumbo_frames'] == True:
                 cli += ' mtu 9216'
+            if module.params['pn_pim_ssm'] == True:
+                cli += ' pim-cluster '
             run_cli(module, cli)
             CHANGED_FLAG.append(True)
             output += ' %s: Added vrouter interface with ip %s to %s \n' % (
@@ -344,6 +348,8 @@ def configure_vrrp_for_non_cluster_leafs(module, ip, ip_v6, non_cluster_leaf, vl
             cli += ' ip ' + ip_v6
         if module.params['pn_jumbo_frames'] == True:
             cli += ' mtu 9216'
+        if module.params['pn_pim_ssm'] == True:
+            cli += ' pim-cluster '
         run_cli(module, cli)
         CHANGED_FLAG.append(True)
         output = ' %s: Added vrouter interface with ip %s' % (
