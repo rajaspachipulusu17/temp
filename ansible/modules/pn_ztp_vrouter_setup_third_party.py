@@ -277,8 +277,8 @@ def main():
     """ This section is for arguments parsing """
     module = AnsibleModule(
         argument_spec=dict(
-            pn_loopback_ip=dict(required=False, type='str', default=''),
-            pn_vrrp_id=dict(required=False, type='str', default=''),
+            pn_loopback_ip=dict(required=False, type='str', default='109.109.109.3/32'),
+            pn_vrrp_id=dict(required=False, type='str', default='18'),
             pn_current_switch=dict(required=False, type='str'),
             pn_spine_list=dict(required=True, type='list'),
             pn_leaf_list=dict(required=True, type='list'),
