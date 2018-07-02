@@ -22,6 +22,7 @@ import shlex
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.pn_nvos import pn_cli
+from collections import OrderedDict
 
 DOCUMENTATION = """
 ---
@@ -291,7 +292,7 @@ def create_tunnel(module, full_nodes, cluster_pair):
     endpoint2 = module.params['pn_tunnel_endpoint2']
     vxlan_id = module.params['pn_tunnel_vxlan_id'].split(',')
     if endpoint1 and endpoint2:
-        all_nodes = {}
+        all_nodes = OrderedDict()
         for node in full_nodes:
             if endpoint1+'-vrouter' == node or endpoint2+'-vrouter' == node:
                 all_nodes[node] = full_nodes[node]

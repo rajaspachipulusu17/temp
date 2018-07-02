@@ -1,0 +1,8 @@
+[spine]
+uans-9kspine1 ansible_host=10.110.0.160
+uans-9kspine2 ansible_host=10.110.0.161
+[leaf]
+uans-9kleaf1 ansible_host=10.110.0.162
+uans-9kleaf2 ansible_host=10.110.0.163
+uans-9kleaf3 ansible_host=10.110.0.164
+uans-9kleaf4 ansible_host=10.110.0.165
