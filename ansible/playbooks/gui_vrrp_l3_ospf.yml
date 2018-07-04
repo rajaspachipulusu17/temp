@@ -4,6 +4,7 @@
 - name: Configure vrouter
   hosts: spine, leaf
   tags: vrouter
+  serial: 1
 
   tasks:
     - name: Setup vrouter
@@ -27,6 +28,7 @@
 - name: Configure L3 VRRP
   hosts: leaf
   tags: l3-vrrp
+  serial: 1
 
   tasks:
     - name: Configure L3 vrrp
@@ -53,6 +55,7 @@
 - name: Configure L3 links
   hosts: leaf
   tags: l3-links
+  serial: 1
 
   tasks:
     - name: Auto configure link IPs
@@ -84,6 +87,7 @@
 - name: Configure OSPF
   hosts: all
   tags: iospf-leaf
+  serial: 1
 
   tasks:
     - name: Configure OSPF
