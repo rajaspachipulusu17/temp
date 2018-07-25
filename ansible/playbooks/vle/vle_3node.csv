@@ -1,0 +1,6 @@
+#switch1-name, switch1-ports, switch2-name, switch2-ports, 
+uans-9kspine1, 1, uans-9kleaf1, 1
+uans-9kspine1, 5, uans-9kleaf2, 1
+## 3 node customer
+#AS7716-32x, 1, F9272-X, 1
+#AS7716-32x, 5, F9232-Q, 1

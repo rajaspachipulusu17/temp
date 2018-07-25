@@ -1,0 +1,341 @@
+# This task will create vrouter on spine switches.
+# It uses pn_ztp_vrouter_setup.py module from library/ directory.
+# If the tasks fails then it will retry as specified by retries count.
+- name: Configure vrouter
+  hosts: all
+  tags: vrouter
+
+
+  tasks:
+    - name: Setup vrouter
+      pn_ztp_vrouter_setup:
+        pn_loopback_ip: "109.109.109.1/32"
+        pn_current_switch: "{{ inventory_hostname }}"  # The name of the current executing switch
+        pn_spine_list: "{{ groups['spine'] }}"         # List of all spine switches mentioned under [spine] grp in hosts file.
+        pn_leaf_list: "{{ groups['leaf'] }}"           # List of all leaf switches mentioned under [leaf] grp in hosts file.
+        pn_vrrp_id: '18'
+        pn_pim_ssm: True                               # Variable to specify pim_ssm for ospf
+        pn_ospf_redistribute: "none"                   # Variable to configure ospf redistribute
+      register: vrouter_out                            # Variable to hold/register output of the above tasks.
+      until: vrouter_out.failed != true                # If the above code fails it will retry the code
+      retries: 3                                       # This is the retries count
+      delay: 3
+
+
+- name: Configure L3 VRRP with OSPF
+  hosts: leaf
+  tags: l3-vrrp
+
+  vars:
+  - csv_file: vrrp_5node.csv
+
+  tasks:
+    # This task is to configure VRRP for Layer 3 fabric.
+    # It takes required VRRP config data from csv file.
+    # It uses pn_l3_vrrp.py module from library/ directory.
+    - name: Configure L3 vrrp
+      pn_ztp_l3_vrrp:
+        pn_spine_list: "{{ groups['spine'] }}"  # List of all spine switches mentioned under [spine] grp in hosts file.
+        pn_leaf_list: "{{ groups['leaf'] }}"    # List of all leaf switches mentioned under [leaf] grp in hosts file.
+        pn_csv_data: "{{ lookup('file', '{{ csv_file }}') }}"  # Csv file containing L3 vrrp data.
+        pn_current_switch: "{{ inventory_hostname }}"  # Name of the switch on which this task is currently getting executed.
+        pn_pim_ssm: True
+        pn_jumbo_frames: True
+      register: vrrp_out                        # Variable to hold/register output of the above tasks.
+      until:  vrrp_out.failed != true           # If error pops up it will retry the code
+      retries: 3                                # This is the retries count
+      delay: 1
+
+    - pause:
+        seconds: 2                              # Pause playbook execution for specified amount of time.
+
+
+
+# Remove all ports from vlan 490
+# This task is to remove ports to vlan.
+# It uses pn_vlan_port.py module from library/ directory.
+- name:  Remove port from vlan
+  hosts: all
+  tags: vlan-port-490
+
+  tasks:
+    - name: vlan add port
+      pn_vlan_port:
+        pn_action: "remove"
+        pn_cliswitch: "{{ inventory_hostname }}"
+        pn_ports: "all"
+        pn_vlanid: "490"
+      register: output
+    - debug:
+        var: output
+
+
+# Add Nexus ports and vxlan-loopback trunk port
+# to Leaf1-Leaf2 ports to vlan 490
+# This task is to add ports to vlan.
+# It uses pn_vlan_port.py module from library/ directory.
+- name:  add port to vlan
+  hosts: leaf[0], leaf[1]
+  tags: vlan-port-490
+
+  tasks:
+    - name: vlan add port
+      pn_vlan_port:
+        pn_action: "add"
+        pn_cliswitch: "{{ inventory_hostname }}"
+        pn_ports: "2,5,49,53"
+        pn_vlanid: "490"
+      register: output
+    - debug:
+        var: output
+
+
+# Add Host ports and vxlan-loopback trunk port
+# to Leaf3-Leaf4 ports to vlan 490
+# This task is to add ports to vlan.
+# It uses pn_vlan_port.py module from library/ directory.
+- name:  add port to vlan
+  hosts: leaf[2]
+  tags: vlan-port-490
+
+  tasks:
+    - name: vlan add port
+      pn_vlan_port:
+        pn_action: "add"
+        pn_cliswitch: "{{ inventory_hostname }}"
+        pn_ports: "1,2,49,53"
+        pn_vlanid: "490"
+      register: output
+    - debug:
+        var: output
+
+
+
+- name: Configure L3 VRRP with OSPF
+  hosts: leaf
+  tags: l3-links
+
+  tasks:
+
+    # This task is to configure ZTP for layer3 fabric.
+    # It uses pn_l3_ztp.py module from library/ directory.
+    # If the tasks fails then it will retry as specified by retries count.
+    - name: Auto configure link IPs
+      pn_ztp_l3_links:
+        pn_current_switch: "{{ inventory_hostname }}"   # Name of the switch on which this task is currently getting executed.
+        pn_spine_list: "{{ groups['spine'] }}"          # List of all spine switches mentioned under [spine] grp in hosts file.
+        pn_leaf_list: "{{ groups['leaf'] }}"            # List of all leaf switches mentioned under [leaf] grp in hosts file.
+        pn_ipv4_start_address: "172.168.1.1"             # Ipv4 Network address required to calculate link IPs for layer3 fabric.
+        pn_cidr_ipv4: "24"                              # Ipv4 CIDR required to calculate link IPs for layer3 fabric.
+        pn_subnet_ipv4: "31"                            # Ipv4 Subnet mask required to calculate link IPs for layer3 fabric.
+        pn_bfd: True                                    # Flag to indicate if BFD config should be added to vrouter interfaces. Default: False.
+        pn_bfd_min_rx: 200                              # BFD-MIN-RX value required for adding BFD configuration to vrouter interfaces.
+        pn_bfd_multiplier: 3                            # BFD_MULTIPLIER value required for adding BFD configuration to vrouter interfaces.
+        pn_update_fabric_to_inband: False               # Flag to indicate if fabric network should be updated to in-band. Default: False.
+        pn_jumbo_frames: True                          # Flag to assign mtu Default
+        pn_stp: True                                    # Flag to enable STP (spanning tree protocol). Default: False.
+      register: ztp_l3_out                              # Variable to hold/register output of the above tasks.
+      until:  ztp_l3_out.failed != true                 # If error pops up it will retry the code
+      retries: 3                                        # This is the retries count
+      delay: 1
+
+    - pause:
+        seconds: 2                                      # Pause playbook execution for specified amount of time.
+
+
+
+
+
+# This task is to configure OSPF.
+# It uses pn_ztp_ospf.py module from library/ directory.
+- name: Configure OSPF
+  hosts: all
+  tags: iospf-leaf
+
+  tasks:
+    - name: Configure OSPF
+      pn_ztp_ospf:
+        pn_current_switch: "{{ inventory_hostname }}"      # Name of the switch on which this task is currently getting executed.
+        pn_spine_list: "{{ groups['spine'] }}"             # List of all spine switches mentioned under [spine] grp in hosts file.
+        pn_leaf_list: "{{ groups['leaf'] }}"               # List of all leaf switches mentioned under [leaf] grp in hosts file.
+        pn_bfd: True                                    # Indicate if BFD config should be added to eBGP. Default: False.
+        pn_ospf_v4_area_id: "0"                      # Area id to configure for ospfv4. Default: 0
+        pn_iospf_vlan: "4040"                             # Vlan for creating the interfaces between leaf clusters. Default:'4040'
+        pn_iospf_ipv4_range: "10.20.30.1"              # Ip range for creating the interfaces between leaf clusters.
+        pn_cidr_ipv4: "24"                                 # subnet count for iospf ip range
+        pn_subnet_ipv4: "31"                               # ipv4 subnet for iospf
+        pn_area_configure_flag: "singlearea"               # Varible to configure area choices=['singlearea', 'dualarea'], default='singlearea'
+        pn_pim_ssm: True                               # Variable to specify pim_ssm for ospf
+        pn_ospf_redistribute: "none"                   # Variable to configure ospf redistribute
+      register: ospf_out                                   # Variable to hold/register output of the above tasks.
+      until: ospf_out.failed != true                       # If the above code fails it will retry the code
+      retries: 3                                           # This is the retries count
+      delay: 1
+
+    - pause:
+        seconds: 2                                         # Pause playbook execution for specified amount of time.
+
+
+# This task is to create vrouter interface.
+# It uses pn_vrouter_iface.py module from library/ directory.
+# Create SVI interface on Spine 1 for VLAN 490
+- name: vrouter interface modules
+  hosts: spine[0]
+  tags: spine-svi
+  ignore_errors: no
+
+  tasks:
+    - name: Add a vrouter interface
+      pn_vrouter_iface:
+        pn_action: "add"                                # vRouter interface command - add/remove/modify.
+        pn_vrouter: "{{ inventory_hostname }}-vrouter"  # Name of the vrouter.
+        pn_vlan: "490"                                  # Interface vlan.
+        pn_interface_ip: "192.168.3.1/29"                  # IP address for the interface in x.x.x.x/n format.
+        pn_mtu: "9216"                                  # Interface MTU.
+      register: output
+    - debug:
+        var: output
+
+
+# This task is to create vrouter interface.
+# It uses pn_vrouter_iface.py module from library/ directory.
+# Create SVI interface on Spine 2 for VLAN 490
+- name: vrouter interface  modules
+  hosts: spine[1]
+  tags: spine-svi
+  ignore_errors: no
+
+  tasks:
+    - name: Add a vrouter interface
+      pn_vrouter_iface:
+        pn_action: "add"                               # vRouter interface command - add/remove/modify.
+        pn_vrouter: "{{ inventory_hostname }}-vrouter" # Name of the vrouter.
+        pn_vlan: "490"                                 # Interface vlan.
+        pn_interface_ip: "192.168.3.9/29"                # IP address for the interface in x.x.x.x/n format.
+        pn_mtu: "9216"                                 # Interface MTU.
+      register: output
+    - debug:
+        var: output
+
+
+# This task is to create VLAN.
+# It uses pn_vlan.py module from library/ directory.
+# If the tasks fails then it will retry as specified by retries count.
+- name: VLAN Configuration
+  tags: inband-vlan
+  hosts: spine, leaf
+  ignore_errors: no
+
+  tasks:
+    - name: VLAN Configuration
+      pn_vlan:
+        pn_action: 'create'                             # The VLAN action to perform on the switches.
+        pn_vlanid: '400'                                # VLAN id. It supports single VLAN id, a list of VLANs or a VLAN Range. 2 and 4092.
+        pn_scope: 'local'                               # Scope for VLAN - fabric/local/cluster.
+        pn_description: 'inbandMGMT'                    # VLAN description.
+        pn_vxlan: '4000'                                  # VXLAN tunnel mapped to VLAN.
+        pn_ports: 'none'
+      register: output
+    - debug:
+        var: output
+
+
+# This task is to add ospf network
+# It uses pn_vrouter_ospf.py module from library/ directory.
+# Add Spine SVI network to OSPF
+- name: Add ospf network
+  hosts: spine[0]
+  tags: spine-svi-ospf
+  ignore_errors: no
+
+  tasks:
+    - name: Add spine-svi network to ospf
+      pn_vrouter_ospf:
+        pn_action: "add"                               # vRouter interface command - add/remove/modify.
+        pn_vrouter: "{{ item.vrouter_name }}"          # Name of the vrouter.
+        pn_network: "{{ item.ip }}"                    # IP address for the interface in x.x.x.x format.
+        pn_netmask: "{{ item.netmask }}"               # Network netmask
+        pn_ospf_area: "0"                              # Interface vlan.
+      with_items:
+        - {vrouter_name: 'uans-9kspine1-vrouter', ip: '192.168.3.0', netmask: '29'}
+        - {vrouter_name: 'uans-9kspine2-vrouter', ip: '192.168.3.8', netmask: '29'}
+        - {vrouter_name: 'uans-9kleaf3-vrouter', ip: '10.110.20.0', netmask: '24'}
+#        - {vrouter_name: 'tmtrflaan-de60316-vrouter', ip: '192.168.3.16', netmask: '29'}
+#        - {vrouter_name: 'tmtrflaan-de60416-vrouter', ip: '192.168.3.24', netmask: '29'}
+      register: output
+    - debug:
+        var: output
+
+
+
+
+
+# This task is to configure VXLAN full mesh.
+# It uses pn_ztp_vxlan.py module from library/ directory.
+# If the tasks fails then it will retry as specified by retries count.
+# Create full-mesh tunnels from every switch/cluster to every other
+# switch/cluster with vxlan loopback port 41 with overlay VLAN 490
+- name: ZTP VXLAN configuration
+  hosts: spine[0]
+  tags: vxlan
+  ignore_errors: no
+
+  tasks:
+    - name: ZTP Vxlan configuration
+      pn_ztp_vxlan:
+        pn_spine_list: "{{ groups['spine'] | default([]) }}"   # List of spine switches
+        pn_leaf_list: "{{ groups['leaf'] | default([])}}"      # List of leaf switches
+        pn_tunnel_mode: 'full-mesh'                            # Flag to indicate tunnel mode type Choices: full-mesh or manual.  Default: full-mesh.
+        pn_tunnel_loopback_port: '41'                          # Port to configure loopback
+        pn_tunnel_vxlan_id: '4000'                             # Specify vxlan id for configuration
+        pn_tunnel_overlay_vlan: '490'                          # Specify overlay vlan
+      register: vxlan_config                                   # Variable to hold/register output of the above tasks.
+      until: vxlan_config.failed != true                       # If the above code fails it will retry the code
+      retries: 3                                               # This is the retries count
+      delay: 3
+    - pause:
+        seconds: 2                                             # Pause playbook execution for specified amount of time.
+
+
+## This task is to create VLE.
+## It uses pn_vle.py module from library/ directory.
+#- name: VLE configuration
+#  hosts: spine[0]
+#  tags: vle
+#  ignore_errors: no
+#
+#  tasks:
+#    - name: VLE configuration
+#      pn_vle:
+#        pn_name: "vle-1"                                      # Specify name of vle.
+#        pn_action: "create"                                   # Specify action. Choices=['create', 'delete', 'modify'].
+#        pn_node_1: "uans-9kspine1"                               # Specify node1/switch1 name.
+#        pn_node_2: "uans-9kleaf1"                               # Specify node2/switch2 name.
+#        pn_node_1_port: "1"                                  # Specify node1 port.
+#        pn_node_2_port: "1,2,3,4"                                  # Specify node2 port.
+#        pn_tracking: True                                    # Specify tracking. Choices=[True, False].
+#      register: output
+#    - debug:
+#        var: output
+
+
+# This task is to create VLE.
+# It uses pn_ztp_vle.py module from library/ directory.
+- name: VLE configuration
+  hosts: spine[0]
+  tags: vle
+  ignore_errors: no
+
+  vars:
+  - csv_file: vle_5node.csv
+
+  tasks:
+    - name: VLE configuration
+      pn_ztp_vle:
+        pn_spine_list: "{{ groups['spine'] }}"                 # List of all spine switches mentioned under [spine] grp in hosts file.
+        pn_leaf_list: "{{ groups['leaf'] }}"                   # List of all leaf switches mentioned under [leaf] grp in hosts file.
+        pn_csv_data: "{{ lookup('file', '{{ csv_file }}') }}"  # Csv file containing vle data.
+        pn_tracking: True                                      # Specify tracking. Choices=[True, False].
+      register: output
+    - debug:
+        var: output
