@@ -15,15 +15,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import shlex
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.pn_nvos import pn_cli
+
+ANSIBLE_METADATA = {'metadata_version': '1.1',
+                    'status': ['preview'],
+                    'supported_by': 'community'}
+
 
 DOCUMENTATION = """
 ---
 module: pn_port_cos_bw
 author: "Pluribus Networks (devops@pluribusnetworks.com)"
-version: 2
+version_added: "2.7"
 short_description: CLI command to modify port-cos-bw.
 description:
   - C(modify): Update b/w settings for CoS queues
@@ -33,12 +35,10 @@ options:
       - Target switch to run the CLI on.
     required: False
     type: str
-  pn_action:
+  state:
     description:
-      - port-cos-bw configuration command.
-    required: true
-    choices: ['modify']
-    type: str
+      - State the action to perform. Use 'update' to modify the port-cos-bw.
+    required: True
   pn_max_bw_limit:
     description:
       - Maximum b/w in %
@@ -56,9 +56,9 @@ options:
     type: str
   pn_weight:
     description:
-      - Scheduling weight after b/w guarantee met
+      - Scheduling weight (1 to 127) after b/w guarantee met
     required: false
-    type: str
+    choices: ['priority', 'no-priority']
   pn_min_bw_guarantee:
     description:
       - Minimum b/w in %
@@ -69,11 +69,18 @@ options:
 EXAMPLES = """
 - name: port cos bw modify
   pn_port_cos_bw:
-    pn_cliswitch: "{{ inventory_hostname }}"
-    pn_action: "modify"
+    pn_cliswitch: "192.168.1.1"
+    state: "update"
+    pn_port: "1"
+    pn_cos: "0"
+    pn_min_bw_guarantee: "60"
+
+- name: port cos bw modify
+  pn_port_cos_bw:
+    pn_cliswitch: "192.168.1.1"
+    state: "update"
     pn_port: "all"
-    pn_cos: "4"
-    pn_min_bw_guarantee: "8"
+    pn_cos: "0"
 """
 
 RETURN = """
@@ -93,6 +100,10 @@ changed:
   type: bool
 """
 
+import shlex
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.pn_nvos import pn_cli
+
 
 def run_cli(module, cli):
     """
@@ -101,33 +112,50 @@ def run_cli(module, cli):
     :param cli: the complete cli string to be executed on the target node(s).
     :param module: The Ansible module to fetch command
     """
-    action = module.params['pn_action']
-    cli = shlex.split(cli)
-    rc, out, err = module.run_command(cli)
+    cliswitch = module.params['pn_cliswitch']
+    state = module.params['state']
+    command = get_command_from_state(state)
+
+    cmd = shlex.split(cli)
+    result, out, err = module.run_command(cmd)
+
+    print_cli = cli.split(cliswitch)[0]
 
     # Response in JSON format
     if err:
         module.fail_json(
-            command=' '.join(cli),
+            command=print_cli,
             stderr=err.strip(),
-            msg="port-cos-bw %s operation failed" % action,
+            msg="port-cos-bw %s operation failed" % cmd,
             changed=False
         )
 
     if out:
         module.exit_json(
-            command=' '.join(cli),
+            command=print_cli,
             stdout=out.strip(),
-            msg="port-cos-bw %s operation completed" % action,
+            msg="port-cos-bw %s operation completed" % cmd,
             changed=True
         )
 
     else:
         module.exit_json(
-            command=' '.join(cli),
-            msg="port-cos-bw %s operation completed" % action,
+            command=print_cli,
+            msg="port-cos-bw %s operation completed" % cmd,
             changed=True
         )
+
+
+def get_command_from_state(state):
+    """
+    This method gets appropriate command name for the state specified. It
+    returns the command name for the specified state.
+    :param state: The state for which the respective command name is required.
+    """
+    command = None
+    if state == 'update':
+        command = 'port-cos-bw-modify'
+    return command
 
 
 def main():
@@ -135,28 +163,35 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             pn_cliswitch=dict(required=False, type='str'),
-            pn_action=dict(required=True, type='str', choices=['modify']),
+            state=dict(required=True, type='str',
+                       choices=['update']),
             pn_max_bw_limit=dict(required=False, type='str'),
             pn_cos=dict(required=False, type='str'),
             pn_port=dict(required=False, type='str'),
-            pn_weight=dict(required=False, type='str'),
+            pn_weight=dict(required=False, type='str',
+                           choices=['priority', 'no-priority']),
             pn_min_bw_guarantee=dict(required=False, type='str'),
+        ),
+        required_if=(
+            ['state', 'update', ['pn_cos', 'pn_port']],
         )
     )
 
     # Accessing the arguments
-    switch = module.params['pn_cliswitch']
-    mod_action = module.params['pn_action']
+    state = module.params['state']
     max_bw_limit = module.params['pn_max_bw_limit']
     cos = module.params['pn_cos']
     port = module.params['pn_port']
     weight = module.params['pn_weight']
     min_bw_guarantee = module.params['pn_min_bw_guarantee']
 
+    command = get_command_from_state(state)
+
     # Building the CLI command string
-    cli = pn_cli(module, switch)
-    cli += ' port-cos-bw-' + mod_action
-    if mod_action in ['modify']:
+    cli = pn_cli(module)
+
+    if command == 'port-cos-bw-modify':
+        cli += ' %s ' % command
         if max_bw_limit:
             cli += ' max-bw-limit ' + max_bw_limit
         if cos:
@@ -169,6 +204,7 @@ def main():
             cli += ' min-bw-guarantee ' + min_bw_guarantee
 
     run_cli(module, cli)
+
 
 if __name__ == '__main__':
     main()
