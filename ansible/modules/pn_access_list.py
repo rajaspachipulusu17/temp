@@ -54,21 +54,21 @@ options:
 """
 
 EXAMPLES = """
-- name: admin service functionality
+- name: access list functionality
   pn_access_list:
     pn_cliswitch: "192.168.1.1"
     pn_name: "foo"
     pn_scope: "local"
     state: "present"
 
-- name: admin service functionality
+- name: access list functionality
   pn_access_list:
     pn_cliswitch: "192.168.1.1"
     pn_name: "foo"
     pn_scope: "local"
     state: "absent"
 
-- name: admin service functionality
+- name: access list functionality
   pn_access_list:
     pn_cliswitch: "192.168.1.1"
     pn_name: "foo"

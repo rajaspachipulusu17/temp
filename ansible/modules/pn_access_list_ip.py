@@ -54,14 +54,14 @@ options:
 """
 
 EXAMPLES = """
-- name: admin service functionality
+- name: add ip to access list
   pn_access_list_ip:
     pn_cliswitch: "192.168.1.1".
     pn_name: "foo"
     pn_ip: "172.16.3.1"
     state: "present"
 
-- name: admin service functionality
+- name: remove ip to access list
   pn_access_list_ip:
     pn_cliswitch: "192.168.1.1".
     pn_name: "foo"

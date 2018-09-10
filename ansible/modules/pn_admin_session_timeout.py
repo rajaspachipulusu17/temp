@@ -55,19 +55,19 @@ options:
 """
 
 EXAMPLES = """
-- name: admin service functionality
+- name: admin session timeout functionality
   pn_admin_session_timeout.py:
     pn_cliswitch: "192.168.1.1"
     state: "update"
     pn_timeout: "61s"
 
-- name: admin service functionality
+- name: admin session timeout functionality
   pn_admin_session_timeout.py:
     pn_cliswitch: "192.168.1.1"
     state: "update"
     pn_timeout: "1d"
 
-- name: admin service functionality
+- name: admin session timeout functionality
   pn_admin_session_timeout.py:
     pn_cliswitch: "192.168.1.1"
     state: "update"
