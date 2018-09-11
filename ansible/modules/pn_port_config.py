@@ -371,9 +371,10 @@ def main():
         if intf:
             cli += ' intf ' + intf
         if crc_check_enable:
-            cli += ' crc-check-enable '
-        else:
-            cli += ' crc-check-disable '
+            if crc_check_enable is enable:
+                cli += ' crc-check-enable '
+            else:
+                cli += ' crc-check-disable '
         if dscp_map:
             cli += ' dscp-map ' + dscp_map
         if autoneg:
@@ -385,9 +386,10 @@ def main():
         if port:
             cli += ' port ' + port
         if vxlan_termination:
-            cli += ' vxlan-termination '
-        else:
-            cli += ' no-vxlan-termination '
+            if vxlan_termination is True:
+                cli += ' vxlan-termination '
+            else:
+                cli += ' no-vxlan-termination '
         if pause:
             cli += ' pause '
         else:
@@ -397,9 +399,10 @@ def main():
         else:
             cli += ' no-fec '
         if loopback:
-            cli += ' loopback '
-        else:
-            cli += ' no-loopback '
+            if loopback is True:
+                cli += ' loopback '
+            else:
+                cli += ' no-loopback '
         if loop_vlans:
             cli += ' loop-vlans ' + loop_vlans
         if routing:
@@ -407,9 +410,10 @@ def main():
         else:
             cli += ' no-routing '
         if edge_switch:
-            cli += ' edge-switch '
-        else:
-            cli += ' no-edge-switch '
+            if edge_switch is True:
+                cli += ' edge-switch '
+            else:
+                cli += ' no-edge-switch '
         if enable:
             cli += ' enable '
         else:
@@ -417,35 +421,41 @@ def main():
         if description:
             cli += ' description ' + description
         if host_enable:
-            cli += ' host-enable '
-        else:
-            cli += ' host-disable '
+            if host_enable is True:
+                cli += ' host-enable '
+            else:
+                cli += ' host-disable '
         if allowed_tpid:
             cli += ' allowed-tpid ' + allowed_tpid
         if mirror_only:
-            cli += ' mirror-only '
-        else:
-            cli += ' no-mirror-receive-only '
+            if mirror_only is True:
+                cli += ' mirror-only '
+            else:
+                cli += ' no-mirror-receive-only '
         if reflect:
-            cli += ' reflect '
-        else:
-            cli += ' no-reflect '
+            if reflect is True:
+                cli += ' reflect '
+            else:
+                cli += ' no-reflect '
         if jumbo:
-            cli += ' jumbo '
-        else:
-            cli += ' no-jumbo '
+            if jumbo is True:
+                cli += ' jumbo '
+            else:
+                cli += ' no-jumbo '
         if egress_rate_limit:
             cli += ' egress-rate-limit ' + egress_rate_limit
         if eth_mode:
             cli += ' eth-mode ' + eth_mode
         if fabric_guard:
-            cli += ' fabric-guard '
-        else:
-            cli += ' no-fabric-guard '
+            if fabric_guard is True:
+                cli += ' fabric-guard '
+            else:
+                cli += ' no-fabric-guard '
         if local_switching:
-            cli += ' local-switching '
-        else:
-            cli += ' no-local-switching '
+            if lical_switching:
+                cli += ' local-switching '
+            else:
+                cli += ' no-local-switching '
         if lacp_priority:
             cli += ' lacp-priority ' + lacp_priority
         if send_port:
@@ -453,9 +463,10 @@ def main():
         if port_mac_address:
             cli += ' port-mac-address ' + port_mac_address
         if defer_bringup:
-            cli += ' defer-bringup '
-        else:
-            cli += ' no-defer-bringup '
+            if defer_bringup is True:
+                cli += ' defer-bringup '
+            else:
+                cli += ' no-defer-bringup '
 
     run_cli(module, cli)
 

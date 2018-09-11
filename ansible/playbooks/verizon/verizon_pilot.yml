@@ -68,7 +68,7 @@
   tasks:
    - name:
      pn_port_config:
-       pn_action: "modify"
+       state: "update"
        pn_port: "all"
        pn_host_enable: True 
      register: output
@@ -86,7 +86,7 @@
   tasks:
     - name: Modify loopback ip
       pn_switch_setup:
-        pn_action: "modify"
+        state: "update"
         pn_cliswitch: "{{ item.pn_cliswitch }}"
         pn_loopback_ip: "{{ item.loopback }}"
         pn_ntp_secondary_server: "138.83.162.53"
@@ -181,7 +181,7 @@
   tasks:
    - name: Modify switch banner
      pn_switch_setup:
-       pn_action: modify
+       state: 'update'
        pn_timezone: "America/New_York"
        pn_banner: |
          "*********************** NOTICE ***********************
@@ -287,25 +287,25 @@
         seconds: 2                              # Pause playbook execution for specified amount of time.
 
 
-# This task is to create VLAN 168 for tunnel with ports none.
-# It uses pn_vlan.py module from library/ directory.
-# If the tasks fails then it will retry as specified by retries count.
-- name: VLAN Configuration
-  tags: vlan-168
-  hosts: leaf[0], leaf[2]
-  ignore_errors: no
-
-  tasks:
-    - name: VLAN Configuration
-      pn_vlan:
-        pn_action: 'create'                             # The VLAN action to perform on the switches.
-        pn_vlanid: '168'                                # VLAN id. It supports single VLAN id, a list of VLANs or a VLAN Range. 2 and 4092.
-        pn_scope: 'cluster'                               # Scope for VLAN - fabric/local/cluster.
-        pn_vxlan: '1680'                                  # VXLAN tunnel mapped to VLAN.
-        pn_ports: 'none'
-      register: output
-    - debug:
-        var: output
+## This task is to create VLAN 168 for tunnel with ports none.
+## It uses pn_vlan.py module from library/ directory.
+## If the tasks fails then it will retry as specified by retries count.
+#- name: VLAN Configuration
+#  tags: vlan-168
+#  hosts: leaf[0], leaf[2]
+#  ignore_errors: no
+#
+#  tasks:
+#    - name: VLAN Configuration
+#      pn_vlan:
+#        pn_action: 'create'                             # The VLAN action to perform on the switches.
+#        pn_vlanid: '168'                                # VLAN id. It supports single VLAN id, a list of VLANs or a VLAN Range. 2 and 4092.
+#        pn_scope: 'cluster'                               # Scope for VLAN - fabric/local/cluster.
+#        pn_vxlan: '1680'                                  # VXLAN tunnel mapped to VLAN.
+#        pn_ports: 'none'
+#      register: output
+#    - debug:
+#        var: output
 
 
 # Remove all ports from vlan 490
@@ -347,25 +347,25 @@
         var: output
 
 
-# Add Host ports and vxlan-loopback trunk port
-# to Leaf3-Leaf4 ports to vlan 490
-# This task is to add ports to vlan.
-# It uses pn_vlan_port.py module from library/ directory.
-- name:  add port to vlan
-  hosts: leaf[2], leaf[3]
-  tags: vlan-port-490
-
-  tasks:
-    - name: vlan add port
-      pn_vlan_port:
-        pn_action: "add"
-        pn_cliswitch: "{{ inventory_hostname }}"
-        pn_ports: "1,2,49,53"
-        pn_vlanid: "490"
-      register: output
-    - debug:
-        var: output
-
+## Add Host ports and vxlan-loopback trunk port
+## to Leaf3-Leaf4 ports to vlan 490
+## This task is to add ports to vlan.
+## It uses pn_vlan_port.py module from library/ directory.
+#- name:  add port to vlan
+#  hosts: leaf[2], leaf[3]
+#  tags: vlan-port-490
+#
+#  tasks:
+#    - name: vlan add port
+#      pn_vlan_port:
+#        pn_action: "add"
+#        pn_cliswitch: "{{ inventory_hostname }}"
+#        pn_ports: "1,2,49,53"
+#        pn_vlanid: "490"
+#      register: output
+#    - debug:
+#        var: output
+#
 
 # This task is to configure ZTP for layer3 fabric.
 # It uses pn_ztp_l3_links.py module from library/ directory.
@@ -569,46 +569,46 @@
         var: output
 
 
-# This task is to create vrouter interface.
-# It uses pn_vrouter_iface.py module from library/ directory.
-# Create SVI interface on Spine 3 for VLAN 490
-- name: vrouter interface modules
-  hosts: spine[2]
-  tags: spine-svi
-  ignore_errors: no
+## This task is to create vrouter interface.
+## It uses pn_vrouter_iface.py module from library/ directory.
+## Create SVI interface on Spine 3 for VLAN 490
+#- name: vrouter interface modules
+#  hosts: spine[2]
+#  tags: spine-svi
+#  ignore_errors: no
+#
+#  tasks:
+#    - name: Add a vrouter interface
+#      pn_vrouter_iface:
+#        pn_action: "add"                                # vRouter interface command - add/remove/modify.
+#        pn_vrouter: "{{ inventory_hostname }}-vrouter"  # Name of the vrouter.
+#        pn_vlan: "490"                                  # Interface vlan.
+#        pn_interface_ip: "192.168.3.17/29"                  # IP address for the interface in x.x.x.x/n format.
+#        pn_mtu: "9216"                                  # Interface MTU.
+#      register: output
+#    - debug:
+#        var: output
 
-  tasks:
-    - name: Add a vrouter interface
-      pn_vrouter_iface:
-        pn_action: "add"                                # vRouter interface command - add/remove/modify.
-        pn_vrouter: "{{ inventory_hostname }}-vrouter"  # Name of the vrouter.
-        pn_vlan: "490"                                  # Interface vlan.
-        pn_interface_ip: "192.168.3.17/29"                  # IP address for the interface in x.x.x.x/n format.
-        pn_mtu: "9216"                                  # Interface MTU.
-      register: output
-    - debug:
-        var: output
 
-
-# This task is to create vrouter interface.
-# It uses pn_vrouter_iface.py module from library/ directory.
-# Create SVI interface on Spine 4 for VLAN 490
-- name: vrouter interface  modules
-  hosts: spine[3]
-  tags: spine-svi
-  ignore_errors: no
-
-  tasks:
-    - name: Add a vrouter interface
-      pn_vrouter_iface:
-        pn_action: "add"                               # vRouter interface command - add/remove/modify.
-        pn_vrouter: "{{ inventory_hostname }}-vrouter" # Name of the vrouter.
-        pn_vlan: "490"                                 # Interface vlan.
-        pn_interface_ip: "192.168.3.25/29"                # IP address for the interface in x.x.x.x/n format.
-        pn_mtu: "9216"                                 # Interface MTU.
-      register: output
-    - debug:
-        var: output
+## This task is to create vrouter interface.
+## It uses pn_vrouter_iface.py module from library/ directory.
+## Create SVI interface on Spine 4 for VLAN 490
+#- name: vrouter interface  modules
+#  hosts: spine[3]
+#  tags: spine-svi
+#  ignore_errors: no
+#
+#  tasks:
+#    - name: Add a vrouter interface
+#      pn_vrouter_iface:
+#        pn_action: "add"                               # vRouter interface command - add/remove/modify.
+#        pn_vrouter: "{{ inventory_hostname }}-vrouter" # Name of the vrouter.
+#        pn_vlan: "490"                                 # Interface vlan.
+#        pn_interface_ip: "192.168.3.25/29"                # IP address for the interface in x.x.x.x/n format.
+#        pn_mtu: "9216"                                 # Interface MTU.
+#      register: output
+#    - debug:
+#        var: output
 
 
 # This task is to add ospf network
@@ -712,23 +712,23 @@
         var: output
 
 
-# Add Host ports and vxlan-loopback trunk port to Leaf3-Leaf4 ports to vlan 168
-# This task is to add ports to vlan.
-# It uses pn_vlan_port.py module from library/ directory.
-- name:  add port to vlan
-  hosts: leaf[2], leaf[3]
-  tags: vlan-port-168
-
-  tasks:
-    - name: vlan add port
-      pn_vlan_port:
-        pn_action: "add"
-        pn_cliswitch: "{{ inventory_hostname }}"
-        pn_ports: "1,2,49,53,253"
-        pn_vlanid: "168"
-      register: output
-    - debug:
-        var: output
+## Add Host ports and vxlan-loopback trunk port to Leaf3-Leaf4 ports to vlan 168
+## This task is to add ports to vlan.
+## It uses pn_vlan_port.py module from library/ directory.
+#- name:  add port to vlan
+#  hosts: leaf[2], leaf[3]
+#  tags: vlan-port-168
+#
+#  tasks:
+#    - name: vlan add port
+#      pn_vlan_port:
+#        pn_action: "add"
+#        pn_cliswitch: "{{ inventory_hostname }}"
+#        pn_ports: "1,2,49,53,253"
+#        pn_vlanid: "168"
+#      register: output
+#    - debug:
+#        var: output
 
 
 # Remove all ports from vlan 400
@@ -790,23 +790,23 @@
         var: output
 
 
-# Add Host ports and vxlan-loopback trunk port to Leaf3-Leaf4 ports to vlan 400
-# This task is to add ports to vlan.
-# It uses pn_vlan_port.py module from library/ directory.
-- name:  add port to vlan
-  hosts: leaf[2], leaf[3]
-  tags: vlan-port-400
-
-  tasks:
-    - name: vlan add port
-      pn_vlan_port:
-        pn_action: "add"
-        pn_cliswitch: "{{ inventory_hostname }}"
-        pn_ports: "1,2,49,53,253"
-        pn_vlanid: "400"
-      register: output
-    - debug:
-        var: output
+## Add Host ports and vxlan-loopback trunk port to Leaf3-Leaf4 ports to vlan 400
+## This task is to add ports to vlan.
+## It uses pn_vlan_port.py module from library/ directory.
+#- name:  add port to vlan
+#  hosts: leaf[2], leaf[3]
+#  tags: vlan-port-400
+#
+#  tasks:
+#    - name: vlan add port
+#      pn_vlan_port:
+#        pn_action: "add"
+#        pn_cliswitch: "{{ inventory_hostname }}"
+#        pn_ports: "1,2,49,53,253"
+#        pn_vlanid: "400"
+#      register: output
+#    - debug:
+#        var: output
 
 
 # This task will configure bgp-as in switches.
@@ -1060,47 +1060,47 @@
         var: output
 
 
-# VLAG between Leaf 3&4 and HostA
-# This task is to create/delete/modify vlag configs.
-# It uses pn_vlag.py module from library/ directory.
-- name:  create vlag
-  hosts: leaf[2]
-  tags: vlag
-
-  tasks:
-    - name: create vlag
-      pn_vlag:
-        pn_action: "create"                            # Specify the action. choices=['create', 'delete', 'modify']
-        pn_name: "503pair-to-hostA-vlag"                           # Specify the name of vlag.
-        pn_port: "1"                          # Specify the port of vlag.
-        pn_peer_port: "1"                     # Specify the peer port.
-        pn_mode: "active-active"                       # Specify mode. choices=['active-standby', 'active-active'].
-        pn_lacp_mode: "active"                        # Specify lacp mode. choices=['off', 'passive', 'active'].
-      register: output
-    - debug:
-        var: output
-
-
-# VLAG between Leaf 3&4 and HostB
-# This task is to create/delete/modify vlag configs.
-# It uses pn_vlag.py module from library/ directory.
-- name:  create vlag
-  hosts: leaf[2]
-  tags: vlag
-
-  tasks:
-    - name: create vlag
-      pn_vlag:
-        pn_action: "create"                            # Specify the action. choices=['create', 'delete', 'modify']
-        pn_name: "503pair-to-hostB-vlag"                           # Specify the name of vlag.
-        pn_port: "2"                          # Specify the port of vlag.
-        pn_peer_port: "2"                     # Specify the peer port.
-        pn_mode: "active-active"                       # Specify mode. choices=['active-standby', 'active-active'].
-        pn_lacp_mode: "active"                        # Specify lacp mode. choices=['off', 'passive', 'active'].
-      register: output
-    - debug:
-        var: output
-
+## VLAG between Leaf 3&4 and HostA
+## This task is to create/delete/modify vlag configs.
+## It uses pn_vlag.py module from library/ directory.
+#- name:  create vlag
+#  hosts: leaf[2]
+#  tags: vlag
+#
+#  tasks:
+#    - name: create vlag
+#      pn_vlag:
+#        pn_action: "create"                            # Specify the action. choices=['create', 'delete', 'modify']
+#        pn_name: "503pair-to-hostA-vlag"                           # Specify the name of vlag.
+#        pn_port: "1"                          # Specify the port of vlag.
+#        pn_peer_port: "1"                     # Specify the peer port.
+#        pn_mode: "active-active"                       # Specify mode. choices=['active-standby', 'active-active'].
+#        pn_lacp_mode: "active"                        # Specify lacp mode. choices=['off', 'passive', 'active'].
+#      register: output
+#    - debug:
+#        var: output
+#
+#
+## VLAG between Leaf 3&4 and HostB
+## This task is to create/delete/modify vlag configs.
+## It uses pn_vlag.py module from library/ directory.
+#- name:  create vlag
+#  hosts: leaf[2]
+#  tags: vlag
+#
+#  tasks:
+#    - name: create vlag
+#      pn_vlag:
+#        pn_action: "create"                            # Specify the action. choices=['create', 'delete', 'modify']
+#        pn_name: "503pair-to-hostB-vlag"                           # Specify the name of vlag.
+#        pn_port: "2"                          # Specify the port of vlag.
+#        pn_peer_port: "2"                     # Specify the peer port.
+#        pn_mode: "active-active"                       # Specify mode. choices=['active-standby', 'active-active'].
+#        pn_lacp_mode: "active"                        # Specify lacp mode. choices=['off', 'passive', 'active'].
+#      register: output
+#    - debug:
+#        var: output
+#
 
 ## VLAG between Leaf1&2 and Pica8-1
 ## This task is to create/delete/modify vlag configs.
@@ -1194,7 +1194,7 @@
     - name: admin service functionality
       pn_admin_service:
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
-        pn_action: "modify"                             # admin service configuration command:modify.
+        state: "update"                                 # admin service configuration command:modify.
         pn_web: False                                   # Specify web type True/False.
         pn__if: "mgmt"                                  # Specify type of network
         pn_web_ssl: False                               # Specify web ssl type True/False.
@@ -1220,7 +1220,7 @@
     - name: admin service functionality
       pn_admin_service:
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
-        pn_action: "modify"                             # admin service configuration command:modify.
+        state: "update"
         pn_web: False                                   # Specify web type True/False.
         pn__if: "data"                                  # Specify type of network
         pn_web_ssl: False                               # Specify web ssl type True/False.
@@ -1246,7 +1246,7 @@
     - name: admin session timeout functionality
       pn_admin_session_timeout:
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
-        pn_action: "modify"                             # admin session timeout configuration choice=modify.
+        state: "update"
         pn_timeout: '3600s'                             # Specify duration of timeout of admin session
       register: output
     - debug:
@@ -1265,12 +1265,12 @@
     - name: snmp-user functionality
       pn_snmp_user:
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
-        pn_action: "create"                             # snmp-user configuration command: create/delete.
+        state: "present"                             # snmp-user configuration command: create/delete.
         pn_user_name: "VINETro"                         # snmp user name.
         pn_auth: True                                   # snmp authentication required.
         pn_priv: True                                   # snmp privileges.
-        pn_auth_pass: "{{ auth_pass }}"                      # snmp authentication password. Add to vault file as key:value pair :- auth_pass: 'baseball'
-        pn_priv_pass: "{{ auth_pass }}"                        # snmp privilege password
+        pn_auth_password: "{{ auth_pass }}"                      # snmp authentication password. Add to vault file as key:value pair :- auth_pass: 'baseball'
+        pn_priv_password: "{{ auth_pass }}"                        # snmp privilege password
       register: output
     - debug:
         var: output
@@ -1288,12 +1288,12 @@
     - name: snmp-user functionality
       pn_snmp_user:
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
-        pn_action: "create"                             # snmp-user configuration command: create/delete.
+        state: "present"                             # snmp-user configuration command: create/delete.
         pn_user_name: "VINETrw"                         # snmp user name.
         pn_auth: True                                   # snmp authentication required.
         pn_priv: True                                   # snmp privileges.
-        pn_auth_pass: "{{ auth_pass }}"                        # snmp authentication password.
-        pn_priv_pass: "{{ auth_pass }}"                        # snmp privilege password
+        pn_auth_password: "{{ auth_pass }}"                        # snmp authentication password.
+        pn_priv_password: "{{ auth_pass }}"                        # snmp privilege password
       register: output
     - debug:
         var: output
@@ -1310,7 +1310,7 @@
     - name: snmp-community functionality
       pn_snmp_community:
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
-        pn_action: "create"                             # snmp-community configuration command: create/delete/modify.
+        state: "present"                             # snmp-community configuration command: create/delete/modify.
         pn_community_string: "vz1net"                 # snmp-communtiy string name.
         pn_community_type: "read-write"                 # snmp-communtiy string type. choices=['read-only', 'read-write']
       register: output
@@ -1321,7 +1321,7 @@
     - name: snmp-community functionality
       pn_snmp_community:
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
-        pn_action: "create"                             # snmp-community configuration command: create/delete/modify.
+        state: "present"                             # snmp-community configuration command: create/delete/modify.
         pn_community_string: "Baywatch"                 # snmp-communtiy string name.
         pn_community_type: "read-only"                  # snmp-communtiy string type. choices=['read-only', 'read-write']
       register: output
@@ -1332,7 +1332,7 @@
     - name: snmp-community functionality
       pn_snmp_community:
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
-        pn_action: "create"                             # snmp-community configuration command: create/delete/modify.
+        state: "present"                             # snmp-community configuration command: create/delete/modify.
         pn_community_string: "F4u1tMgmt"                 # snmp-communtiy string name.
         pn_community_type: "read-write"                  # snmp-communtiy string type. choices=['read-only', 'read-write']
       register: output
@@ -1349,7 +1349,7 @@
   tasks:
     - name: snmp trap sink functionality
       pn_snmp_trap_sink:
-        pn_action: "create"
+        state: "present"
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
         pn_community: "F4u1tMgmt"                        # snmp community string.
         pn_type: "TRAP_TYPE_V2_INFORM"                  # snmp trap type. Default: "TRAP_TYPE_V2C_TRAP". choices: ['TRAP_TYPE_V1_TRAP', 'TRAP_TYPE_V2C_TRAP', 'TRAP_TYPE_V2_INFORM'].
@@ -1368,7 +1368,7 @@
   tasks:
     - name: snmp trap sink functionality
       pn_snmp_trap_sink:
-        pn_action: "create"
+        state: "present"
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
         pn_community: "F4u1tMgmt"                        # snmp community string.
         pn_type: "TRAP_TYPE_V2_INFORM"                  # snmp trap type. Default: "TRAP_TYPE_V2C_TRAP". choices: ['TRAP_TYPE_V1_TRAP', 'TRAP_TYPE_V2C_TRAP', 'TRAP_TYPE_V2_INFORM'].
@@ -1388,7 +1388,7 @@
     - name: snmp vacm functionality
       pn_snmp_vacm:
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
-        pn_action: "create"                             # snmp vacm configuration command: create/delete/modify.
+        state: "present"                             # snmp vacm configuration command: create/delete/modify.
         pn_user_name: "VINETro"                         # Specify the name of the snmp vacm.
         pn_auth: True                                   # snmp authentication required.
         pn_priv: True                                   # snmp privileges.
@@ -1408,7 +1408,7 @@
     - name: snmp vacm functionality
       pn_snmp_vacm:
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
-        pn_action: "create"                             # snmp vacm configuration command: create/delete/modify.
+        state: "present"                             # snmp vacm configuration command: create/delete/modify.
         pn_user_name: "VINETrw"                         # Specify the name of the snmp vacm.
         pn_auth: True                                   # snmp authentication required.
         pn_priv: True                                   # snmp privileges.
@@ -1421,14 +1421,14 @@
 # This task is to create/modify admin syslog.
 # It uses pn_admin_syslog.py module from library/ directory.
 - name: admin syslog module
-  hosts: spine, leaf
+  hosts: spine[0]
   tags: admin-syslog
 
   tasks:
     - name: admin-syslog functionality
       pn_admin_syslog:
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
-        pn_action: "create"                             # admin-syslog configuration command: create/delete/modify.
+        state: "present"                             # admin-syslog configuration command: create/delete/modify.
         pn_name: "vzsyslog1"                             # Specify the name of the admin-syslog.
         pn_scope: "fabric"                              # Specify the name of the scope. local/fabric
         pn_host: "138.83.67.8"                        # Specify host ip.
@@ -1448,7 +1448,7 @@
     - name: admin-syslog functionality
       pn_admin_syslog:
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
-        pn_action: "create"                             # admin-syslog configuration command: create/delete/modify.
+        state: "present"                             # admin-syslog configuration command: create/delete/modify.
         pn_name: "vzsyslog2"                             # Specify the name of the admin-syslog.
         pn_scope: "fabric"                              # Specify the name of the scope. local/fabric
         pn_host: "166.68.224.45"                        # Specify host ip.
@@ -1468,7 +1468,7 @@
     - name: role functionality
       pn_role:
         pn_cliswitch: "{{ inventory_hostname }}"      # Name of the switch on which this task is currently getting executed.
-        pn_action: "create"                           # Specify the action of role. choices=['create', 'modify', 'delete']
+        state: "present"                           # Specify the action of role. choices=['create', 'modify', 'delete']
         pn_name: "enss"                               # Specify the name of the role.
         pn_scope: "local"                             # Specify the scope of the role. choices=choices=['local', 'fabric']
       register: output
@@ -1485,7 +1485,7 @@
   tasks:
     - name: Modify vflow table profile
       pn_vflow_table_profile:
-        pn_action: 'modify'
+        state: 'update'
         pn_profile: 'ipv6'
         pn_hw_tbl: 'switch-main'
         pn_enable: True
@@ -1503,7 +1503,7 @@
   tasks:
     - name: "Modify IGMP Snooping"
       pn_igmp_snooping:
-        pn_action: 'modify'
+        state: 'update'
         pn_vxlan: True
         pn_enable_vlans: "1-399,401-4092"
         pn_no_snoop_linklocal_vlans: "none"
@@ -1562,7 +1562,7 @@
   tasks:
     - name: "Configure user"
       pn_user:
-        pn_action: "create"
+        state: "present"
         pn_scope: "fabric"
         pn_initial_role: "network-admin"
         pn_password: "{{ ansible_ssh_pass }}"
@@ -1581,7 +1581,7 @@
   tasks:
     - name: "Modify connection stats settings"
       pn_connection_stats_settings:
-        pn_action: "modify"
+        state: "update"
         pn_enable: False
       register: output
     - debug:
@@ -1617,7 +1617,7 @@
   tasks:
     - name: Modify switch inband ipv6
       pn_switch_setup:
-        pn_action: "modify"
+        state: "update"
         pn_cliswitch: "{{ item.pn_cliswitch }}"
         pn_in_band_ip6: "{{ item.ip }}"
       with_items:
@@ -1644,8 +1644,9 @@
     - name: dscp map create
       pn_dscp_map:
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
-        pn_action: "create"                             # admin-syslog configuration command: create/delete.
+        state: "present"                             # admin-syslog configuration command: create/delete.
         pn_name: "verizon_qos"                          # Specify the name of the dscp-map.
+        pn_scope: "local"
       register: output
     - debug:
         var: output
@@ -1659,7 +1660,7 @@
 
   tasks:
     - name: dscp map pri map modify
-      pn_dscp_map_pri_map: pn_cliswitch={{ inventory_hostname }} pn_action="modify" pn_name="verizon_qos" pn_pri={{ item.pri }} pn_dsmap={{ item.dsmap }}
+      pn_dscp_map_pri_map: pn_cliswitch={{ inventory_hostname }} state="update" pn_name="verizon_qos" pn_pri={{ item.pri }} pn_dsmap={{ item.dsmap }}
       with_items:
         - {pri: '0', dsmap: '40'}
         - {pri: '1', dsmap: '8,10,12,14'}
@@ -1684,7 +1685,7 @@
     - name: port config modify
       pn_port_config:
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
-        pn_action: "modify"                             # port config configuration command: modify.
+        state: "update"                             # port config configuration command: modify.
         pn_port: "all"                                  # Specify the port/ports to be modified.
         pn_dscp_map: "verizon_qos"                      # Specify the name of dscp-map.
       register: output
@@ -1702,7 +1703,7 @@
     - name: port cos bw modify
       pn_port_cos_bw:
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
-        pn_action: "modify"                             # port cos bw configuration command: modify.
+        state: "update"                             # port cos bw configuration command: modify.
         pn_port: "all"                                  # Specify the port/ports to be modified.
         pn_cos: "5"                                     # Specify the cos.
         pn_min_bw_guarantee: "20"                       # Specify the min bw guarentee.
@@ -1721,7 +1722,7 @@
     - name: port cos bw modify
       pn_port_cos_bw:
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
-        pn_action: "modify"                             # port cos bw configuration command: modify.
+        state: "update"                             # port cos bw configuration command: modify.
         pn_port: "all"                                  # Specify the port/ports to be modified.
         pn_cos: "4"                                     # Specify the cos.
         pn_min_bw_guarantee: "8"                        # Specify the min bw guarentee.
@@ -1740,7 +1741,7 @@
     - name: port cos bw modify
       pn_port_cos_bw:
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
-        pn_action: "modify"                             # port cos bw configuration command: modify.
+        state: "update"                             # port cos bw configuration command: modify.
         pn_port: "all"                                  # Specify the port/ports to be modified.
         pn_cos: "6"                                     # Specify the cos.
         pn_min_bw_guarantee: "4"                        # Specify the min bw guarentee.
@@ -1759,7 +1760,7 @@
     - name: port cos bw modify
       pn_port_cos_bw:
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
-        pn_action: "modify"                             # port cos bw configuration command: modify.
+        state: "update"                             # port cos bw configuration command: modify.
         pn_port: "all"                                  # Specify the port/ports to be modified.
         pn_cos: "0"                                     # Specify the cos.
         pn_min_bw_guarantee: "60"                       # Specify the min bw guarentee.
@@ -1778,7 +1779,7 @@
     - name: port cos bw modify
       pn_port_cos_bw:
         pn_cliswitch: "{{ inventory_hostname }}"        # Name of the switch on which this task is currently getting executed.
-        pn_action: "modify"                             # port cos bw configuration command: modify.
+        state: "update"                             # port cos bw configuration command: modify.
         pn_port: "all"                                  # Specify the port/ports to be modified.
         pn_cos: "1"                                     # Specify the cos.
         pn_min_bw_guarantee: "8"                       # Specify the min bw guarentee.
@@ -1797,7 +1798,7 @@
     - name: port cos bw modify
       pn_port_cos_rate_setting:
         pn_cliswitch: "{{ inventory_hostname }}"          # Name of the switch on which this task is currently getting executed.
-        pn_action: "modify"                               # port cos rate setting configuration command: modify.
+        state: "update"                               # port cos rate setting configuration command: modify.
         pn_port: "control-port"                           # Specify the port type choices=['control-port', 'data-port', 'span-ports']
         pn_cos1_rate: "1000"                              # Specify the port cos-rate.
         pn_cos5_rate: "1000"                              # Specify the port cos-rate.
