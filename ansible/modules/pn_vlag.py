@@ -1,5 +1,6 @@
 #!/usr/bin/python
 """ PN CLI vlag-create/vlag-delete/vlag-modify """
+
 #
 # This file is part of Ansible
 #
@@ -17,85 +18,90 @@
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-import shlex
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.pn_nvos import pn_cli
+ANSIBLE_METADATA = {'metadata_version': '1.1',
+                    'status': ['preview'],
+                    'supported_by': 'community'}
+
 
 DOCUMENTATION = """
 ---
 module: pn_vlag
-author: "Pluribus Networks (devops@pluribusnetworks.com)"
-version: 2.0
+author: "Pluribus Networks (@amitsi)"
+version_added: "2.2"
 short_description: CLI command to create/delete/modify vlag.
 description:
-  - Execute vlag-create, vlag-delete or vlag-modify command.
+  - Execute vlag-create/vlag-delete/vlag-modify command.
+  - A virtual link aggregation group (VLAG) allows links that are physically
+    connected to two different Pluribus Networks devices to appear as a single
+    trunk to a third device. The third device can be a switch, server, or any
+    Ethernet device. A VLAG can provide Layer 2 multipathing, which allows you
+    to create redundancy by increasing bandwidth, enabling multiple parallel
+    paths between nodes and loadbalancing traffic where alternative paths exist.
 options:
+  pn_cliusername:
+    description:
+      - Provide login username if user is not root.
+    required: False
+  pn_clipassword:
+    description:
+      - Provide login password if user is not root.
+    required: False
   pn_cliswitch:
     description:
-      - Target switch to run this command on.
-    type: str
-  pn_action:
+      - Target switch(es) to run this command on.
+  state:
     description:
-      - The vLAG configuration command.
-    required: true
-    choices: ['create', 'delete', 'modify']
-    type: str
+      - State the action to perform. Use 'present' to create vlag,
+        'absent' to delete vlag and 'update' to modify vlag.
+    required: True
+    choices: ['present', 'absent', 'update']
   pn_name:
     description:
-      - Name for the vLAG.
+      - The C(pn_name) takes a valid name for vlag configuration.
     required: true
-    type: str
   pn_port:
     description:
-      - Local VLAG port.
-    type: str
+      - Specify the local VLAG port.
+      - Required for vlag-create.
   pn_peer_port:
     description:
-      - VLAG peer port.
-    type: str
+      - Specify the peer VLAG port.
+      - Required for vlag-create.
   pn_mode:
     description:
-      - VLAG mode.
+      - Specify the mode for the VLAG. Active-standby indicates one side is
+        active and the other side is in standby mode. Active-active indicates
+        that both sides of the vlag are up by default.
     choices: ['active-active', 'active-standby']
-    type: str
   pn_peer_switch:
     description:
-      - Name of the peer switch.
-    type: str
+      - Specify the fabric-name of the peer switch.
   pn_failover_action:
     description:
-      - failover-move-l2 sends gratious ARPs or not.
+      - Specify the failover action as move or ignore.
     choices: ['move', 'ignore']
-    type: str
   pn_lacp_mode:
     description:
       - Specify the LACP mode.
     choices: ['off', 'passive', 'active']
-    type: str
   pn_lacp_timeout:
     description:
-      - Specify the LACP timeout as slow or fast.
-    type: str
+      - Specify the LACP timeout as slow(30 seconds) or fast(4 seconds).
+    choices: ['slow', 'fast']
   pn_lacp_fallback:
     description:
-      - Specify the LACP fallback mode as bundled or individual.
+      - Specify the LACP fallback mode as bundles or individual.
     choices: ['bundle', 'individual']
-    type: str
   pn_lacp_fallback_timeout:
     description:
-      - Specify the LACP fallback timeout between 30 and 60 seconds,
-        default 50 seconds.
-    type: str
-  pn_lacp_port_priority:
-    description:
-      - Specify the LACP port priority.
-    type: str
+      - Specify the LACP fallback timeout in seconds. The range is between 30
+        and 60 seconds with a default value of 50 seconds.
 """
 
 EXAMPLES = """
 - name: create a VLAG
   pn_vlag:
-    pn_action: 'create'
+    state: 'present'
     pn_name: spine-to-leaf
     pn_port: 'spine01-to-leaf'
     pn_peer_port: 'spine02-to-leaf'
@@ -104,19 +110,21 @@ EXAMPLES = """
 
 - name: delete VLAGs
   pn_vlag:
-    pn_action: 'delete'
+    state: 'absent'
     pn_name: spine-to-leaf
 """
 
 RETURN = """
 command:
-  description: the CLI command run on the target node.
+  description: The CLI command run on the target node(s).
+  returned: always
+  type: str
 stdout:
-  description: the set of responses from the vlag command.
+  description: The set of responses from the vlag command.
   returned: always
   type: list
 stderr:
-  description: the set of error responses from the vlag command.
+  description: The set of error responses from the vlag command.
   returned: on error
   type: list
 changed:
@@ -125,30 +133,58 @@ changed:
   type: bool
 """
 
+import shlex
+
+# AnsibleModule boilerplate
+from ansible.module_utils.basic import AnsibleModule
+
 VLAG_EXISTS = None
 
 
-def check_cli(module):
+def pn_cli(module):
+    """
+    This method is to generate the cli portion to launch the Netvisor cli.
+    It parses the username, password, switch parameters from module.
+    :param module: The Ansible module to fetch username, password and switch
+    :return: returns the cli string for further processing
+    """
+    username = module.params['pn_cliusername']
+    password = module.params['pn_clipassword']
+    cliswitch = module.params['pn_cliswitch']
+
+    if username and password:
+        cli = '/usr/bin/cli --quiet --user %s:%s ' % (username, password)
+    else:
+        cli = '/usr/bin/cli --quiet '
+
+    if cliswitch == 'local':
+        cli += ' switch-local '
+    else:
+        cli += ' switch ' + cliswitch
+    return cli
+
+
+def check_cli(module, cli):
     """
     This method checks for idempotency using the vlag-show command.
     If a vlag with given vlag exists, return VLAG_EXISTS as True else False.
     :param module: The Ansible module to fetch input parameters
+    :param cli: The CLI string
     :return Global Booleans: VLAG_EXISTS
     """
     name = module.params['pn_name']
-    switch = module.params['pn_cliswitch']
-    show_cli = pn_cli(module, switch)
 
-    show_cli += ' vlag-show format name no-show-headers'
-    show_cli = shlex.split(show_cli)
-    # Global flags
-    global VLAG_EXISTS
-
-    out = module.run_command(show_cli)[1]
+    show = cli + ' vlag-show format name no-show-headers'
+    show = shlex.split(show)
+    out = module.run_command(show)[1]
 
     out = out.split()
-
-    VLAG_EXISTS = True if name in out else False
+    # Global flags
+    global VLAG_EXISTS
+    if name in out:
+        VLAG_EXISTS = True
+    else:
+        VLAG_EXISTS = False
 
 
 def run_cli(module, cli):
@@ -158,65 +194,92 @@ def run_cli(module, cli):
     :param cli: the complete cli string to be executed on the target node(s).
     :param module: The Ansible module to fetch command
     """
-    action = module.params['pn_action']
-    cli = shlex.split(cli)
-    rc, out, err = module.run_command(cli)
+    cliswitch = module.params['pn_cliswitch']
+    state = module.params['state']
+    command = get_command_from_state(state)
+
+    cmd = shlex.split(cli)
+
+    # 'out' contains the output
+    # 'err' contains the error messages
+    result, out, err = module.run_command(cmd)
+
+    print_cli = cli.split(cliswitch)[1]
 
     # Response in JSON format
-    if err:
+    if result != 0:
         module.exit_json(
-            command=' '.join(cli),
+            command=print_cli,
             stderr=err.strip(),
-            msg="vLAG %s operation failed" % action,
+            msg="%s operation failed" % command,
             changed=False
         )
 
     if out:
         module.exit_json(
-            command=' '.join(cli),
+            command=print_cli,
             stdout=out.strip(),
-            msg="vLAG %s operation completed" % action,
+            msg="%s operation completed" % command,
             changed=True
         )
 
     else:
         module.exit_json(
-            command=' '.join(cli),
-            msg="vLAG %s operation completed" % action,
+            command=print_cli,
+            msg="%s operation completed" % command,
             changed=True
         )
+
+
+def get_command_from_state(state):
+    """
+    This method gets appropriate command name for the state specified. It
+    returns the command name for the specified state.
+    :param state: The state for which the respective command name is required.
+    """
+    command = None
+    if state == 'present':
+        command = 'vlag-create'
+    if state == 'absent':
+        command = 'vlag-delete'
+    if state == 'update':
+        command = 'vlag-modify'
+    return command
 
 
 def main():
     """ This section is for argument parsing """
     module = AnsibleModule(
         argument_spec=dict(
-            pn_cliswitch=dict(required=False, type='str'),
-            pn_action=dict(required=True, type='str',
-                           choices=['create', 'delete', 'modify']),
+            pn_cliusername=dict(required=False, type='str'),
+            pn_clipassword=dict(required=False, type='str', no_log=True),
+            pn_cliswitch=dict(required=False, type='str', default='local'),
+            state=dict(required=True, type='str',
+                       choices=['present', 'absent', 'update']),
             pn_name=dict(required=True, type='str'),
             pn_port=dict(type='str'),
             pn_peer_port=dict(type='str'),
-            pn_mode=dict(type='str',
-                         choices=['active-standby', 'active-active']),
+            pn_mode=dict(type='str', choices=[
+                         'active-standby', 'active-active']),
             pn_peer_switch=dict(type='str'),
-            pn_failover_action=dict(type='str',
-                                    choices=['move', 'ignore']),
-            pn_lacp_mode=dict(type='str',
-                              choices=['off', 'passive', 'active']),
-            pn_lacp_timeout=dict(type='str',
-                                 choices=['slow', 'fast']),
-            pn_lacp_fallback=dict(type='str',
-                                  choices=['individual', 'bundled']),
-            pn_lacp_fallback_timeout=dict(type='str'),
-            pn_lacp_port_priority=dict(type='str')
+            pn_failover_action=dict(type='str', choices=['move', 'ignore']),
+            pn_lacp_mode=dict(type='str', choices=[
+                              'off', 'passive', 'active']),
+            pn_lacp_timeout=dict(type='str', choices=['slow', 'fast']),
+            pn_lacp_fallback=dict(type='str', choices=[
+                                  'individual', 'bundled']),
+            pn_lacp_fallback_timeout=dict(type='str')
+        ),
+        required_if=(
+            ["state", "present", ["pn_name", "pn_port", "pn_peer_port",
+                                  "pn_peer_switch"]],
+            ["state", "absent", ["pn_name"]],
+            ["state", "update", ["pn_name"]]
         )
     )
 
     # Argument accessing
-    switch = module.params['pn_cliswitch']
-    action = module.params['pn_action']
-    command = ' vlag-' + action
+    state = module.params['state']
     name = module.params['pn_name']
     port = module.params['pn_port']
     peer_port = module.params['pn_peer_port']
@@ -227,41 +290,41 @@ def main():
     lacp_timeout = module.params['pn_lacp_timeout']
     lacp_fallback = module.params['pn_lacp_fallback']
     lacp_fallback_timeout = module.params['pn_lacp_fallback_timeout']
-    lacp_port_priority = module.params['pn_lacp_port_priority']
+
+    command = get_command_from_state(state)
 
     # Building the CLI command string
-    cli = pn_cli(module, switch)
-    check_cli(module)
-    cli += ' %s name %s ' % (command, name)
+    cli = pn_cli(module)
 
-    if action == 'delete':
+    if command == 'vlag-delete':
+
+        check_cli(module, cli)
         if VLAG_EXISTS is False:
             module.exit_json(
                 skipped=True,
                 msg='VLAG with name %s does not exist' % name
             )
+        cli += ' %s name %s ' % (command, name)
 
     else:
-        if action == 'create':
+
+        if command == 'vlag-create':
+            check_cli(module, cli)
             if VLAG_EXISTS is True:
                 module.exit_json(
                     skipped=True,
                     msg='VLAG with name %s already exists' % name
                 )
+        cli += ' %s name %s ' % (command, name)
 
+        if port:
             cli += ' port %s peer-port %s ' % (port, peer_port)
 
-            if mode:
-                cli += ' mode ' + mode
-            if peer_switch:
-                cli += ' peer-switch ' + peer_switch
+        if mode:
+            cli += ' mode ' + mode
 
-        if action == 'modify':
-            if VLAG_EXISTS is False:
-                module.exit_json(
-                    skipped=True,
-                    msg='VLAG with name %s does not exist' % name
-                )
+        if peer_switch:
+            cli += ' peer-switch ' + peer_switch
 
         if failover_action:
             cli += ' failover-' + failover_action + '-L2 '
@@ -278,10 +341,8 @@ def main():
         if lacp_fallback_timeout:
             cli += ' lacp-fallback-timeout ' + lacp_fallback_timeout
 
-        if lacp_port_priority:
-            cli += ' lacp-port-priority ' + lacp_port_priority
-
     run_cli(module, cli)
+
 
 if __name__ == '__main__':
     main()
