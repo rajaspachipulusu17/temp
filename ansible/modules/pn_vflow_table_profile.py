@@ -15,15 +15,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import shlex
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.pn_nvos import pn_cli
+
+ANSIBLE_METADATA = {'metadata_version': '1.1',
+                    'status': ['preview'],
+                    'supported_by': 'community'}
+
 
 DOCUMENTATION = """
 ---
 module: pn_vflow_table_profile
 author: "Pluribus Networks (devops@pluribusnetworks.com)"
-version: 2
+version_added: "2.7"
 short_description: CLI command to modify vflow-table-profile.
 description:
   - C(modify): modify a vFlow table profile
@@ -33,12 +35,11 @@ options:
       - Target switch to run the CLI on.
     required: False
     type: str
-  pn_action:
+  state:
     description:
-      - vflow-table-profile configuration command.
-    required: true
-    choices: ['modify']
-    type: str
+      - State the action to perform. Use 'update' to modify
+        the vflow-table-profile.
+    required: True
   pn_profile:
     description:
       - type of vFlow profile
@@ -57,12 +58,19 @@ options:
 """
 
 EXAMPLES = """
-- name: modify vflow table profile
+- name: Modify vflow table profile
   pn_vflow_table_profile:
-    pn_action: 'modify'
+    state: 'update'
     pn_profile: 'ipv6'
     pn_hw_tbl: 'switch-main'
     pn_enable: True
+
+- name: Modify vflow table profile
+  pn_vflow_table_profile:
+    state: 'update'
+    pn_profile: 'qos'
+    pn_hw_tbl: 'switch-main'
+    pn_enable: False
 """
 
 RETURN = """
@@ -82,6 +90,10 @@ changed:
   type: bool
 """
 
+import shlex
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.pn_nvos import pn_cli
+
 
 def run_cli(module, cli):
     """
@@ -90,33 +102,50 @@ def run_cli(module, cli):
     :param cli: the complete cli string to be executed on the target node(s).
     :param module: The Ansible module to fetch command
     """
-    action = module.params['pn_action']
-    cli = shlex.split(cli)
-    rc, out, err = module.run_command(cli)
+    cliswitch = module.params['pn_cliswitch']
+    state = module.params['state']
+    command = get_command_from_state(state)
+
+    cmd = shlex.split(cli)
+    result, out, err = module.run_command(cmd)
+
+    print_cli = cli.split(cliswitch)[0]
 
     # Response in JSON format
     if err:
         module.fail_json(
-            command=' '.join(cli),
+            command=print_cli,
             stderr=err.strip(),
-            msg="vflow-table-profile %s operation failed" % action,
+            msg="vflow-table-profile %s operation failed" % cmd,
             changed=False
         )
 
     if out:
         module.exit_json(
-            command=' '.join(cli),
+            command=print_cli,
             stdout=out.strip(),
-            msg="vflow-table-profile %s operation completed" % action,
+            msg="vflow-table-profile %s operation completed" % cmd,
             changed=True
         )
 
     else:
         module.exit_json(
-            command=' '.join(cli),
-            msg="vflow-table-profile %s operation completed" % action,
+            command=print_cli,
+            msg="vflow-table-profile %s operation completed" % cmd,
             changed=True
         )
+
+
+def get_command_from_state(state):
+    """
+    This method gets appropriate command name for the state specified. It
+    returns the command name for the specified state.
+    :param state: The state for which the respective command name is required.
+    """
+    command = None
+    if state == 'update':
+        command = 'vflow-table-profile-modify'
+    return command
 
 
 def main():
@@ -124,37 +153,44 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             pn_cliswitch=dict(required=False, type='str'),
-            pn_action=dict(required=True, type='str',
-                           choices=['modify']),
+            state=dict(required=True, type='str',
+                       choices=['update']),
             pn_profile=dict(required=False, type='str',
                             choices=['application', 'ipv6', 'qos']),
             pn_hw_tbl=dict(required=False, type='str',
-                           choices=['switch-main', 'switch-hash', 'npu-main', 'npu-hash']),
+                           choices=['switch-main', 'switch-hash',
+                                    'npu-main', 'npu-hash']),
             pn_enable=dict(required=False, type='bool'),
-        )
+        ),
+        required_if=(
+            ['state', 'update', ['pn_profile', 'pn_hw_tbl']],
+        ),
     )
 
     # Accessing the arguments
-    action = module.params['pn_action']
+    state = module.params['state']
     profile = module.params['pn_profile']
     hw_tbl = module.params['pn_hw_tbl']
     enable = module.params['pn_enable']
 
+    command = get_command_from_state(state)
+
     # Building the CLI command string
     cli = pn_cli(module)
-    cli += 'vflow-table-profile-' + action
 
-    if profile:
-        cli += ' profile ' + profile
-    if hw_tbl:
-        cli += ' hw-tbl ' + hw_tbl
-    if enable:
-        if enable is True:
+    if command == 'vflow-table-profile-modify':
+        cli += ' %s ' % command
+        if profile:
+            cli += ' profile ' + profile
+        if hw_tbl:
+            cli += ' hw-tbl ' + hw_tbl
+        if enable:
             cli += ' enable '
         else:
             cli += ' no-enable '
-    
+
     run_cli(module, cli)
+
 
 if __name__ == '__main__':
     main()

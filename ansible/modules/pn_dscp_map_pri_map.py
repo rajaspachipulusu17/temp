@@ -15,15 +15,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import shlex
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.pn_nvos import pn_cli
+
+ANSIBLE_METADATA = {'metadata_version': '1.1',
+                    'status': ['preview'],
+                    'supported_by': 'community'}
+
 
 DOCUMENTATION = """
 ---
 module: pn_dscp_map_pri_map
 author: "Pluribus Networks (devops@pluribusnetworks.com)"
-version: 2
+version_added: "2.7"
 short_description: CLI command to modify dscp-map-pri-map.
 description:
   - C(modify): Update priority mappings in tables
@@ -33,12 +35,11 @@ options:
       - Target switch to run the CLI on.
     required: False
     type: str
-  pn_action:
+  state:
     description:
-      - dscp-map-pri-map configuration command.
-    required: true
-    choices: ['modify']
-    type: str
+      - State the action to perform. Use 'update' to modify
+        the dscp-map-pri-map.
+    required: True
   pn_pri:
     description:
       - CoS priority
@@ -59,11 +60,19 @@ options:
 EXAMPLES = """
 - name: dscp map pri map modify
   pn_dscp_map_pri_map:
-    pn_cliswitch: "{{ inventory_hostname }}"
-    pn_action: "modify"
-    pn_name: "verizon_qos"
-    pn_pri: "0"
-    pn_dsmap: "1-60"
+    pn_cliswitch: '192.168.1.1'
+    state: 'update'
+    pn_name: 'foo' 
+    pn_pri: '0'
+    pn_dsmap: '40'
+
+- name: dscp map pri map modify
+  pn_dscp_map_pri_map:
+    pn_cliswitch: '192.168.1.1'
+    state: 'update'
+    pn_name: 'foo' 
+    pn_pri: '1'
+    pn_dsmap: '8,10,12,14'
 """
 
 RETURN = """
@@ -83,6 +92,10 @@ changed:
   type: bool
 """
 
+import shlex
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.pn_nvos import pn_cli
+
 
 def run_cli(module, cli):
     """
@@ -91,33 +104,50 @@ def run_cli(module, cli):
     :param cli: the complete cli string to be executed on the target node(s).
     :param module: The Ansible module to fetch command
     """
-    action = module.params['pn_action']
-    cli = shlex.split(cli)
-    rc, out, err = module.run_command(cli)
+    cliswitch = module.params['pn_cliswitch']
+    state = module.params['state']
+    command = get_command_from_state(state)
+
+    cmd = shlex.split(cli)
+    result, out, err = module.run_command(cmd)
+
+    print_cli = cli.split(cliswitch)[0]
 
     # Response in JSON format
     if err:
         module.fail_json(
-            command=' '.join(cli),
+            command=print_cli,
             stderr=err.strip(),
-            msg="dscp-map-pri-map %s operation failed" % action,
+            msg="dscp-map-pri-map %s operation failed" % cmd,
             changed=False
         )
 
     if out:
         module.exit_json(
-            command=' '.join(cli),
+            command=print_cli,
             stdout=out.strip(),
-            msg="dscp-map-pri-map %s operation completed" % action,
+            msg="dscp-map-pri-map %s operation completed" % cmd,
             changed=True
         )
 
     else:
         module.exit_json(
-            command=' '.join(cli),
-            msg="dscp-map-pri-map %s operation completed" % action,
+            command=print_cli,
+            msg="dscp-map-pri-map %s operation completed" % cmd,
             changed=True
         )
+
+
+def get_command_from_state(state):
+    """
+    This method gets appropriate command name for the state specified. It
+    returns the command name for the specified state.
+    :param state: The state for which the respective command name is required.
+    """
+    command = None
+    if state == 'update':
+        command = 'dscp-map-pri-map-modify'
+    return command
 
 
 def main():
@@ -125,24 +155,30 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             pn_cliswitch=dict(required=False, type='str'),
-            pn_action=dict(required=True, type='str', choices=['modify']),
+            state=dict(required=True, type='str',
+                       choices=['update']),
             pn_pri=dict(required=False, type='str'),
             pn_name=dict(required=False, type='str'),
             pn_dsmap=dict(required=False, type='str'),
+        ),
+        required_if=(
+            ['state', 'update', ['pn_name', 'pn_pri', 'pn_dsmap']],
         )
     )
 
     # Accessing the arguments
-    switch = module.params['pn_cliswitch']
-    mod_action = module.params['pn_action']
+    state = module.params['state']
     pri = module.params['pn_pri']
     name = module.params['pn_name']
     dsmap = module.params['pn_dsmap']
 
+    command = get_command_from_state(state)
+
     # Building the CLI command string
-    cli = pn_cli(module, switch)
-    cli += ' dscp-map-pri-map-' + mod_action
-    if mod_action in ['modify']:
+    cli = pn_cli(module)
+
+    if command == 'dscp-map-pri-map-modify':
+        cli += ' %s ' % command
         if pri:
             cli += ' pri ' + pri
         if name:
@@ -151,6 +187,7 @@ def main():
             cli += ' dsmap ' + dsmap
 
     run_cli(module, cli)
+
 
 if __name__ == '__main__':
     main()

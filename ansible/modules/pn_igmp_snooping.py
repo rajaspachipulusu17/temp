@@ -15,15 +15,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import shlex
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.pn_nvos import pn_cli
+
+ANSIBLE_METADATA = {'metadata_version': '1.1',
+                    'status': ['preview'],
+                    'supported_by': 'community'}
+
 
 DOCUMENTATION = """
 ---
 module: pn_igmp_snooping
 author: "Pluribus Networks (devops@pluribusnetworks.com)"
-version: 2
+version_added: "2.7"
 short_description: CLI command to modify igmp-snooping.
 description:
   - C(modify): modify Internet Group Management Protocol (IGMP) snooping
@@ -33,17 +35,20 @@ options:
       - Target switch to run the CLI on.
     required: False
     type: str
-  pn_action:
+  state:
     description:
-      - igmp-snooping configuration command.
-    required: true
-    choices: ['modify']
-    type: str
+      - State the action to perform. Use 'update' to modify the igmp-snooping.
+    required: True
   pn_enable:
     description:
       - enable or disable IGMP snooping
     required: false
     type: bool
+  pn_query_interval:
+    description:
+      - IGMP query interval in seconds
+    required: false
+    type: str
   pn_igmpv2_vlans:
     description:
       - VLANs on which to use IGMPv2 protocol
@@ -63,7 +68,12 @@ options:
     description:
       - enable or disable IGMP snooping on vxlans
     required: false
-    type: bool
+    type: str
+  pn_query_max_response_time:
+    description:
+      - maximum response time, in seconds, advertised in IGMP queries
+    required: false
+    type: str
   pn_scope:
     description:
       - IGMP snooping scope - fabric or local
@@ -82,11 +92,21 @@ options:
 """
 
 EXAMPLES = """
-- name: Modify igmp snooping
+- name: 'Modify IGMP Snooping'
   pn_igmp_snooping:
-    pn_action: 'modify'
-    pn_enable: True
+    state: 'update'
     pn_vxlan: True
+    pn_enable_vlans: '1-399,401-4092'
+    pn_no_snoop_linklocal_vlans: 'none'
+    pn_igmpv3_vlans: '1-399,401-4092'
+
+- name: 'Modify IGMP Snooping'
+  pn_igmp_snooping:
+    state: 'update'
+    pn_vxlan: False
+    pn_enable_vlans: '1-399'
+    pn_no_snoop_linklocal_vlans: 'none'
+    pn_igmpv3_vlans: '1-399'
 """
 
 RETURN = """
@@ -106,6 +126,10 @@ changed:
   type: bool
 """
 
+import shlex
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.pn_nvos import pn_cli
+
 
 def run_cli(module, cli):
     """
@@ -114,33 +138,50 @@ def run_cli(module, cli):
     :param cli: the complete cli string to be executed on the target node(s).
     :param module: The Ansible module to fetch command
     """
-    action = module.params['pn_action']
-    cli = shlex.split(cli)
-    rc, out, err = module.run_command(cli)
+    cliswitch = module.params['pn_cliswitch']
+    state = module.params['state']
+    command = get_command_from_state(state)
+
+    cmd = shlex.split(cli)
+    result, out, err = module.run_command(cmd)
+
+    print_cli = cli.split(cliswitch)[0]
 
     # Response in JSON format
     if err:
         module.fail_json(
-            command=' '.join(cli),
+            command=print_cli,
             stderr=err.strip(),
-            msg="igmp-snooping %s operation failed" % action,
+            msg="igmp-snooping %s operation failed" % cmd,
             changed=False
         )
 
     if out:
         module.exit_json(
-            command=' '.join(cli),
+            command=print_cli,
             stdout=out.strip(),
-            msg="igmp-snooping %s operation completed" % action,
+            msg="igmp-snooping %s operation completed" % cmd,
             changed=True
         )
 
     else:
         module.exit_json(
-            command=' '.join(cli),
-            msg="igmp-snooping %s operation completed" % action,
+            command=print_cli,
+            msg="igmp-snooping %s operation completed" % cmd,
             changed=True
         )
+
+
+def get_command_from_state(state):
+    """
+    This method gets appropriate command name for the state specified. It
+    returns the command name for the specified state.
+    :param state: The state for which the respective command name is required.
+    """
+    command = None
+    if state == 'update':
+        command = 'igmp-snooping-modify'
+    return command
 
 
 def main():
@@ -148,39 +189,57 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             pn_cliswitch=dict(required=False, type='str'),
-            pn_action=dict(required=True, type='str', choices=['modify']),
+            state=dict(required=True, type='str',
+                       choices=['update']),
             pn_enable=dict(required=False, type='bool'),
+            pn_query_interval=dict(required=False, type='str'),
             pn_igmpv2_vlans=dict(required=False, type='str'),
             pn_igmpv3_vlans=dict(required=False, type='str'),
             pn_enable_vlans=dict(required=False, type='str'),
-            pn_vxlan=dict(required=False, type='bool'),
-            pn_scope=dict(required=False, type='str', choices=['local', 'fabric']),
+            pn_vxlan=dict(required=False, type='str'),
+            pn_query_max_response_time=dict(required=False, type='str'),
+            pn_scope=dict(required=False, type='str',
+                          choices=['local', 'fabric']),
             pn_no_snoop_linklocal_vlans=dict(required=False, type='str'),
             pn_snoop_linklocal_vlans=dict(required=False, type='str'),
-        )
+        ),
+        required_one_of=[['pn_enable', 'pn_query_interval',
+                          'pn_igmpv2_vlans',
+                          'pn_igmpv3_vlans',
+                          'pn_enable_vlans',
+                          'pn_vxlan',
+                          'pn_query_max_response_time',
+                          'pn_scope',
+                          'pn_no_snoop_linklocal_vlans',
+                          'pn_snoop_linklocal_vlans']]
     )
 
     # Accessing the arguments
-    action = module.params['pn_action']
-    switch = module.params['pn_cliswitch']
+    state = module.params['state']
     enable = module.params['pn_enable']
+    query_interval = module.params['pn_query_interval']
     igmpv2_vlans = module.params['pn_igmpv2_vlans']
     igmpv3_vlans = module.params['pn_igmpv3_vlans']
     enable_vlans = module.params['pn_enable_vlans']
     vxlan = module.params['pn_vxlan']
+    query_max_response_time = module.params['pn_query_max_response_time']
     scope = module.params['pn_scope']
     no_snoop_linklocal_vlans = module.params['pn_no_snoop_linklocal_vlans']
     snoop_linklocal_vlans = module.params['pn_snoop_linklocal_vlans']
 
+    command = get_command_from_state(state)
+
     # Building the CLI command string
-    cli = pn_cli(module, switch)
-    cli += 'igmp-snooping-' + action
-    if action in ['modify']:
+    cli = pn_cli(module)
+
+    if command == 'igmp-snooping-modify':
+        cli += ' %s ' % command
         if enable:
-            if enable is True:
-                cli += ' enable '
-            else:
-                cli += ' disable '
+            cli += ' enable '
+        else:
+            cli += ' disable '
+        if query_interval:
+            cli += ' query-interval ' + query_interval
         if igmpv2_vlans:
             cli += ' igmpv2-vlans ' + igmpv2_vlans
         if igmpv3_vlans:
@@ -188,10 +247,11 @@ def main():
         if enable_vlans:
             cli += ' enable-vlans ' + enable_vlans
         if vxlan:
-            if vxlan is True:
-                cli += ' vxlan '
-            if vxlan is False:
-                cli += ' no-vxlan '
+            cli += ' vxlan '
+        else:
+            cli += ' no-vxlan '
+        if query_max_response_time:
+            cli += ' query-max-response-time ' + query_max_response_time
         if scope:
             cli += ' scope ' + scope
         if no_snoop_linklocal_vlans:
@@ -200,6 +260,7 @@ def main():
             cli += ' snoop-linklocal-vlans ' + snoop_linklocal_vlans
 
     run_cli(module, cli)
+
 
 if __name__ == '__main__':
     main()

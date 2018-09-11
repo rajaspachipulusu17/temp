@@ -1,31 +1,31 @@
 #!/usr/bin/python
 """ PN CLI port-cos-rate-setting-modify """
-#
-# This file is part of Ansible
-#
-# Ansible is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# Ansible is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
-#
 
-import shlex
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.pn_nvos import pn_cli
+# Copyright 2018 Pluribus Networks
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+ANSIBLE_METADATA = {'metadata_version': '1.1',
+                    'status': ['preview'],
+                    'supported_by': 'community'}
+
 
 DOCUMENTATION = """
 ---
 module: pn_port_cos_rate_setting
 author: "Pluribus Networks (devops@pluribusnetworks.com)"
-version: 2
+version_added: "2.7"
 short_description: CLI command to modify port-cos-rate-setting.
 description:
   - C(modify): update the port cos rate limit
@@ -35,52 +35,51 @@ options:
       - Target switch to run the CLI on.
     required: False
     type: str
-  action:
+  state:
     description:
-      - port-cos-rate-setting configuration command.
-    required: true
-    choices: ['modify']
-    type: str
+      - State the action to perform. Use ''pdate' to modify
+        the port-cos-rate-setting.
+    required: True
   pn_cos1_rate:
     description:
       - cos1 rate limit (pps)
     required: false
-    type: str
+    choices: ['unlimited', '0..10000000']
   pn_cos5_rate:
     description:
       - cos5 rate limit (pps)
     required: false
-    type: str
+    choices: ['unlimited', '0..10000000']
   pn_cos2_rate:
     description:
       - cos2 rate limit (pps)
     required: false
-    type: str
+    choices: ['unlimited', '0..10000000']
   pn_cos0_rate:
     description:
       - cos0 rate limit (pps)
     required: false
-    type: str
+    choices: ['unlimited', '0..10000000']
   pn_cos6_rate:
     description:
       - cos6 rate limit (pps)
     required: false
-    type: str
+    choices: ['unlimited', '0..10000000']
   pn_cos3_rate:
     description:
       - cos3 rate limit (pps)
     required: false
-    type: str
+    choices: ['unlimited', '0..10000000']
   pn_cos4_rate:
     description:
       - cos4 rate limit (pps)
     required: false
-    type: str
+    choices: ['unlimited', '0..10000000']
   pn_cos7_rate:
     description:
       - cos7 rate limit (pps)
     required: false
-    type: str
+    choices: ['unlimited', '0..10000000']
   pn_port:
     description:
       - port
@@ -89,18 +88,7 @@ options:
 """
 
 EXAMPLES = """
-pn_port_cos_rate_setting:
-  pn_cliswitch: "{{ inventory_hostname }}"
-  pn_action: "modify"
-  pn_port: "control-port"
-  pn_cos1_rate: "1000"
-  pn_cos5_rate: "1000"
-  pn_cos2_rate: "1000"
-  pn_cos0_rate: "1000"
-  pn_cos6_rate: "1000"
-  pn_cos3_rate: "1000"
-  pn_cos4_rate: "1000"
-  pn_cos7_rate: "1000" 
+
 """
 
 RETURN = """
@@ -120,6 +108,10 @@ changed:
   type: bool
 """
 
+import shlex
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.pn_nvos import pn_cli
+
 
 def run_cli(module, cli):
     """
@@ -128,33 +120,50 @@ def run_cli(module, cli):
     :param cli: the complete cli string to be executed on the target node(s).
     :param module: The Ansible module to fetch command
     """
-    action = module.params['pn_action']
-    cli = shlex.split(cli)
-    rc, out, err = module.run_command(cli)
+    cliswitch = module.params['pn_cliswitch']
+    state = module.params['state']
+    command = get_command_from_state(state)
+
+    cmd = shlex.split(cli)
+    result, out, err = module.run_command(cmd)
+
+    print_cli = cli.split(cliswitch)[0]
 
     # Response in JSON format
     if err:
         module.fail_json(
-            command=' '.join(cli),
+            command=print_cli,
             stderr=err.strip(),
-            msg="port-cos-rate-setting %s operation failed" % action,
+            msg="port-cos-rate-setting %s operation failed" % cmd,
             changed=False
         )
 
     if out:
         module.exit_json(
-            command=' '.join(cli),
+            command=print_cli,
             stdout=out.strip(),
-            msg="port-cos-rate-setting %s operation completed" % action,
+            msg="port-cos-rate-setting %s operation completed" % cmd,
             changed=True
         )
 
     else:
         module.exit_json(
-            command=' '.join(cli),
-            msg="port-cos-rate-setting %s operation completed" % action,
+            command=print_cli,
+            msg="port-cos-rate-setting %s operation completed" % cmd,
             changed=True
         )
+
+
+def get_command_from_state(state):
+    """
+    This method gets appropriate command name for the state specified. It
+    returns the command name for the specified state.
+    :param state: The state for which the respective command name is required.
+    """
+    command = None
+    if state == 'update':
+        command = 'port-cos-rate-setting-modify'
+    return command
 
 
 def main():
@@ -162,7 +171,8 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             pn_cliswitch=dict(required=False, type='str'),
-            pn_action=dict(required=True, type='str', choices=['modify']),
+            state=dict(required=True, type='str',
+                       choices=['update']),
             pn_cos1_rate=dict(required=False, type='str'),
             pn_cos5_rate=dict(required=False, type='str'),
             pn_cos2_rate=dict(required=False, type='str'),
@@ -171,13 +181,24 @@ def main():
             pn_cos3_rate=dict(required=False, type='str'),
             pn_cos4_rate=dict(required=False, type='str'),
             pn_cos7_rate=dict(required=False, type='str'),
-            pn_port=dict(required=False, type='str', choices=['control-port', \
-                         'data-port', 'span-ports']),
-        )
+            pn_port=dict(required=False, type='str',
+                         choices=['control-port', 'data-port', 'span-ports']),
+        ),
+        required_if=(
+            ['state', 'update', ['pn_port']],
+        ),
+        required_one_of=[['pn_cos0_rate',
+                          'pn_cos1_rate',
+                          'pn_cos2_rate',
+                          'pn_cos3_rate',
+                          'pn_cos4_rate',
+                          'pn_cos5_rate',
+                          'pn_cos6_rate',
+                          'pn_cos7_rate']],
     )
 
     # Accessing the arguments
-    mod_action = module.params['pn_action']
+    state = module.params['state']
     cos1_rate = module.params['pn_cos1_rate']
     cos5_rate = module.params['pn_cos5_rate']
     cos2_rate = module.params['pn_cos2_rate']
@@ -188,10 +209,13 @@ def main():
     cos7_rate = module.params['pn_cos7_rate']
     port = module.params['pn_port']
 
+    command = get_command_from_state(state)
+
     # Building the CLI command string
     cli = pn_cli(module)
-    cli += 'port-cos-rate-setting-' + mod_action
-    if mod_action in ['modify']:
+
+    if command == 'port-cos-rate-setting-modify':
+        cli += ' %s ' % command
         if cos1_rate:
             cli += ' cos1-rate ' + cos1_rate
         if cos5_rate:
@@ -212,6 +236,7 @@ def main():
             cli += ' port ' + port
 
     run_cli(module, cli)
+
 
 if __name__ == '__main__':
     main()
