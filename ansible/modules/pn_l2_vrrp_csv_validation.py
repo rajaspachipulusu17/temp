@@ -132,7 +132,11 @@ def main():
                                 address = address_with_subnet[0]
                                 subnet = address_with_subnet[1]
                                 dot_count = address.count('.')
+                                addr = int(address.split('.')[3])
                                 if dot_count != 3:
+                                    raise socket.error
+
+                                if addr == 0 or addr >= 255:
                                     raise socket.error
 
                                 socket.inet_aton(address)

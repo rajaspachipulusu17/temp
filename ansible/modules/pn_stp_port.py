@@ -1,33 +1,29 @@
 #!/usr/bin/python
 """ PN CLI stp-port-modify """
-#
-# This file is part of Ansible
-#
-# Ansible is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# Ansible is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
-#
 
+# Copyright 2018 Pluribus Networks
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-ANSIBLE_METADATA = {'metadata_version': '1.1',
-                    'status': ['preview'],
-                    'supported_by': 'community'}
-
+import shlex
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.pn_nvos import pn_cli
 
 DOCUMENTATION = """
 ---
 module: pn_stp_port
 author: "Pluribus Networks (devops@pluribusnetworks.com)"
-version_added: "2.7"
+version: 2
 short_description: CLI command to modify stp-port.
 description:
   - C(modify): modify Spanning Tree Protocol (STP) parameters
@@ -36,59 +32,61 @@ options:
     description:
       - Target switch to run the CLI on.
     required: False
-  state:
+    type: str
+  pn_action:
     description:
-      - State the action to perform. Use 'update' to update stp-port.
-    required: True
+      - stp-port configuration command.
+    required: true
+    choices: ['modify']
+    type: str
   pn_priority:
     description:
       - STP port priority from 0 to 240 - default 128
+    required: false
     type: str
   pn_cost:
     description:
       - STP port cost from 1 to 200000000 - default 2000
+    required: false
     type: str
   pn_root_guard:
     description:
       - STP port Root guard
+    required: false
+    type: bool
   pn_filter:
     description:
       - STP port filters BPDUs
+    required: false
+    type: bool
   pn_edge:
     description:
       - STP port is an edge port
+    required: false
+    type: bool
   pn_bpdu_guard:
     description:
       - STP port BPDU guard
+    required: false
+    type: bool
   pn_port:
     description:
       - STP port
+    required: false
     type: str
   pn_block:
     description:
       - Specify if a STP port blocks BPDUs
+    required: false
+    type: bool
 """
 
 EXAMPLES = """
-- name: Modify stp
-  pn_stp_port:
-    state: "update"
-    pn_port: "1"
-    pn_filter: True
-
-- name: Modify stp
-  pn_stp_port:
-    state: "update"
-    pn_port: "1"
-    pn_cost: "200"
-
-- name: Modify stp
-  pn_stp_port:
-    state: "update"
-    pn_port: "1"
-    pn_edge: True
-    pn_cost: "200"
-
+    - name: Modify stp
+      pn_stp_port:
+        pn_action: "modify"
+        pn_port: "2,3"
+        pn_cost: "200"
 """
 
 RETURN = """
@@ -109,13 +107,6 @@ changed:
 """
 
 
-import shlex
-
-# AnsibleModule boilerplate
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.pn_nvos import pn_cli
-
-
 def run_cli(module, cli):
     """
     This method executes the cli command on the target node(s) and returns the
@@ -123,50 +114,33 @@ def run_cli(module, cli):
     :param cli: the complete cli string to be executed on the target node(s).
     :param module: The Ansible module to fetch command
     """
-    cliswitch = module.params['pn_cliswitch']
-    state = module.params['state']
-    command = get_command_from_state(state)
-
-    cmd = shlex.split(cli)
-    result, out, err = module.run_command(cmd)
-
-    print_cli = cli.split(cliswitch)[1]
+    action = module.params['pn_action']
+    cli = shlex.split(cli)
+    rc, out, err = module.run_command(cli)
 
     # Response in JSON format
-    if result != 0:
-        module.exit_json(
-            command=print_cli,
+    if err:
+        module.fail_json(
+            command=' '.join(cli),
             stderr=err.strip(),
-            msg="stp-port %s operation failed" % cmd,
+            msg="stp-port %s operation failed" % action,
             changed=False
         )
 
     if out:
         module.exit_json(
-            command=print_cli,
+            command=' '.join(cli),
             stdout=out.strip(),
-            msg="stp-port %s operation completed" % cmd,
+            msg="stp-port %s operation completed" % action,
             changed=True
         )
 
     else:
         module.exit_json(
-            command=print_cli,
-            msg="stp-port %s operation completed" % cmd,
+            command=' '.join(cli),
+            msg="stp-port %s operation completed" % action,
             changed=True
         )
-
-
-def get_command_from_state(state):
-    """
-    This method gets appropriate command name for the state specified. It
-    returns the command name for the specified state.
-    :param state: The state for which the respective command name is required.
-    """
-    command = None
-    if state == 'update':
-        command = 'stp-port-modify'
-    return command
 
 
 def main():
@@ -174,8 +148,7 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             pn_cliswitch=dict(required=False, type='str'),
-            state=dict(required=True, type='str',
-                       choices=['update']),
+            pn_action=dict(required=True, type='str', choices=['modify']),
             pn_priority=dict(required=False, type='str'),
             pn_cost=dict(required=False, type='str'),
             pn_root_guard=dict(required=False, type='bool'),
@@ -184,31 +157,24 @@ def main():
             pn_bpdu_guard=dict(required=False, type='bool'),
             pn_port=dict(required=False, type='str'),
             pn_block=dict(required=False, type='bool'),
-        ),
-        required_if=(
-            ["state", "update", ["pn_port"]],
-        ),
-        required_one_of=([['pn_cost', 'pn_root_guard', 'pn_filter',
-                           'pn_edge', 'pn_bpdu_guard', 'pn_block']]),
+        )
     )
 
     # Accessing the arguments
-    state = module.params['state']
+    mod_action = module.params['pn_action']
     priority = module.params['pn_priority']
     cost = module.params['pn_cost']
     root_guard = module.params['pn_root_guard']
-    pn_filter = module.params['pn_filter']
+    filter = module.params['pn_filter']
     edge = module.params['pn_edge']
     bpdu_guard = module.params['pn_bpdu_guard']
     port = module.params['pn_port']
     block = module.params['pn_block']
 
-    command = get_command_from_state(state)
-
     # Building the CLI command string
     cli = pn_cli(module)
-    if command == 'stp-port-modify':
-        cli += ' %s ' % command
+    cli += 'stp-port-' + mod_action
+    if mod_action in ['modify']:
         if priority:
             cli += ' priority ' + priority
         if cost:
@@ -218,8 +184,8 @@ def main():
                 cli += ' root-guard '
             else:
                 cli += ' no-root-guard '
-        if pn_filter:
-            if pn_filter is True:
+        if filter:
+            if filter is True:
                 cli += ' filter '
             else:
                 cli += ' no-filter '
@@ -240,9 +206,8 @@ def main():
                 cli += ' block '
             else:
                 cli += ' no-block '
-
+    
     run_cli(module, cli)
-
 
 if __name__ == '__main__':
     main()

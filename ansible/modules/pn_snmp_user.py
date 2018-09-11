@@ -1,5 +1,5 @@
 #!/usr/bin/python
-""" PN CLI snmp-user-create/modify/delete """
+""" PN CLI snmp-user-create/snmp-user-delete """
 #
 # This file is part of Ansible
 #
@@ -17,82 +17,74 @@
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-
-ANSIBLE_METADATA = {'metadata_version': '1.1',
-                    'status': ['preview'],
-                    'supported_by': 'community'}
-
+import shlex
+import os
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.pn_nvos import pn_cli
 
 DOCUMENTATION = """
 ---
 module: pn_snmp_user
 author: "Pluribus Networks (devops@pluribusnetworks.com)"
-version_added: "2.7"
+version: 2
 short_description: CLI command to create/modify/delete snmp-user.
 description:
-  - C(create): create SNMPv3 users
-  - C(modify): modify SNMPv3 users
-  - C(delete): delete SNMPv3 users
+  - C(create): create View Access Control Models (VACM)
+  - C(modify): modify View Access Control Models (VACM)
+  - C(delete): delete View Access Control Models (VACM)
 options:
   pn_cliswitch:
     description:
       - Target switch to run the CLI on.
     required: False
-  state:
-    description:
-      - State the action to perform. Use 'present' to create snmp-user and
-        'absent' to delete snmp-user 'update' to modify the user.
-    required: True
-  pn_auth_password:
-    description:
-      - authentication password
     type: str
-  pn_priv_password:
+  action:
     description:
-      - privilege password
+      - snmp-user configuration command.
+    required: true
+    choices: ['create', 'modify', 'delete']
     type: str
-  pn_auth_hash:
-    description:
-      - Hashing algorithm for authentication
-    choices: ['md5', 'sha']
-  pn_auth:
-    description:
-      - authentication required
   pn_priv:
     description:
       - privileges
+    required: false
+    type: bool
+  pn_auth:
+    description:
+      - authentication required
+    required: false
+    type: bool
+  pn_user_type:
+    description:
+      - SNMP user type
+    required: false
+    choices: ['rouser', 'rwuser']
   pn_user_name:
     description:
-      - SNMP user name
+      - SNMP administrator name
+    required: false
+    type: str
+  pn_auth_pass:
+    description:
+      - snmp authentication password
+    required: False
+    type: str
+  pn_priv_pass:
+    description:
+      - snmp privilege password
+    required: False
     type: str
 """
 
 EXAMPLES = """
 - name: snmp-user functionality
   pn_snmp_user:
-    pn_cliswitch: "192.168.1.1"
-    state: 'absent'
-    pn_user_name: "VINETro"
+    pn_action: "create"
+    pn_user_name: "VINETrw"      
     pn_auth: True
     pn_priv: True
-    pn_auth_password: "baseball"
-    pn_priv_password: "baseball"
-
-- name: snmp-user functionality
-  pn_snmp_user:
-    pn_cliswitch: "192.168.1.1"
-    state: 'absent'
-    pn_user_name: "VINETro"
-
-- name: snmp-user functionality
-  pn_snmp_user:
-    pn_cliswitch: "192.168.1.1"
-    state: "update"
-    pn_user_name: "VINETro"
-    pn_auth: True
-    pn_priv: True
-    pn_auth_password: "baseball"
-    pn_priv_password: "bassball"
+    pn_auth_pass: 'baseball'
+    pn_priv_pass: 'baseball'
 """
 
 RETURN = """
@@ -112,91 +104,70 @@ changed:
   type: bool
 """
 
-
-import shlex
-
-# AnsibleModule boilerplate
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.pn_nvos import pn_cli
-
-
-def run_cli(module, cli):
+def run_cli(module, cli, pass_args=None):
     """
     This method executes the cli command on the target node(s) and returns the
     output. The module then exits based on the output.
     :param cli: the complete cli string to be executed on the target node(s).
     :param module: The Ansible module to fetch command
     """
-    cliswitch = module.params['pn_cliswitch']
-    state = module.params['state']
-    command = get_command_from_state(state)
-
-    cmd = shlex.split(cli)
-    result, out, err = module.run_command(cmd)
-
-    print_cli = cli.split(cliswitch)[0]
+    action = module.params['pn_action']
+    if pass_args:
+        fd_r, fd_w = os.pipe()
+        newpid = os.fork()
+        if newpid == 0:
+           os.close(fd_w)
+           cli = cli.replace('--quiet -e --no-login-prompt', '--quiet  --pass-fd %s ' % (fd_r))
+           cli = shlex.split(cli)
+           rc, out, err = module.run_command(cli, close_fds=False)
+           os.close(fd_r)
+        else:
+           os.close(fd_r)
+           os.write(fd_w, pass_args)
+           os.close(fd_w)
+    else:
+        cli = shlex.split(cli)
+        rc, out, err = module.run_command(cli) 
 
     # Response in JSON format
-    if result != 0:
-        module.exit_json(
-            command=print_cli,
+    if err:
+        module.fail_json(
+            command=' '.join(cli),
             stderr=err.strip(),
-            msg="snmp-user %s operation failed" % cmd,
+            msg="snmp-user %s operation failed" % action,
             changed=False
         )
 
     if out:
         module.exit_json(
-            command=print_cli,
+            command=' '.join(cli),
             stdout=out.strip(),
-            msg="snmp-user %s operation completed" % cmd,
+            msg="snmp-user %s operation completed" % action,
             changed=True
         )
 
     else:
         module.exit_json(
-            command=print_cli,
-            msg="snmp-user %s operation completed" % cmd,
+            command=' '.join(cli),
+            msg="snmp-user %s operation completed" % action,
             changed=True
         )
 
 
-def check_cli(module, cli):
+def check_user(module, user_name):
     """
-    This method checks for idempotency using the snmp-user-show command.
-    If a user with given name exists, return USER_EXISTS as True else False.
-    :param module: The Ansible module to fetch input parameters
-    :param cli: The CLI string
-    :return Global Booleans: USER_EXISTS
+    This method is to checks user exists or not.
+    :param user_name: the user to be checked.
+    :return: String of user if exists else Success.
     """
-    user_name = module.params['pn_user_name']
-
-    show = cli + \
-        ' snmp-user-show format user-name no-show-headers'
-    show = shlex.split(show)
-    out = module.run_command(show)[1]
-
-    out = out.split()
-    # Global flags
-    global USER_EXISTS
-
-    USER_EXISTS = True if user_name in out else False
-
-
-def get_command_from_state(state):
-    """
-    This method gets appropriate command name for the state specified. It
-    returns the command name for the specified state.
-    :param state: The state for which the respective command name is required.
-    """
-    command = None
-    if state == 'present':
-        command = 'snmp-user-create'
-    if state == 'absent':
-        command = 'snmp-user-delete'
-    if state == 'update':
-        command = 'snmp-user-modify'
-    return command
+    cli = pn_cli(module)
+    switch = module.params['pn_cliswitch']
+    if switch is None:
+        switch = 'switch-local'
+    cli += switch
+    cli += ' snmp-user-show user-name ' + user_name
+    cli = shlex.split(cli)
+    return module.run_command(cli)[1]
 
 
 def main():
@@ -204,73 +175,67 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             pn_cliswitch=dict(required=False, type='str'),
-            state=dict(required=True, type='str',
-                       choices=['present', 'absent', 'update']),
-            pn_auth_password=dict(required=False, type='str', no_log=True),
-            pn_priv_password=dict(required=False, type='str', no_log=True),
+            pn_action=dict(required=True, type='str',
+                           choices=['create', 'delete', 'modify']),
+            pn_user_name=dict(required=True, type='str'),
+            pn_auth=dict(required=False, type='bool', default=False),
+            pn_priv=dict(required=False, type='bool', default=False),
+            pn_auth_pass=dict(required=False, type='str', no_log=True),
+            pn_priv_pass=dict(required=False, type='str', no_log=True),
             pn_auth_hash=dict(required=False, type='str',
-                              choices=['md5', 'sha']),
-            pn_auth=dict(required=False, type='bool', no_log=True),
-            pn_priv=dict(required=False, type='bool', no_log=True),
-            pn_user_name=dict(required=False, type='str'),
-        ),
-        required_if=(
-            ["state", "present", ["pn_user_name"]],
-            ["state", "absent", ["pn_user_name"]],
-            ["state", "update", ["pn_user_name"]]
+                              choices=['sha', 'md5']),
         )
     )
 
-    # Accessing the arguments
-    state = module.params['state']
-    auth_password = module.params['pn_auth_password']
-    priv_password = module.params['pn_priv_password']
-    auth_hash = module.params['pn_auth_hash']
+    pass_args = ''
+    user_name = module.params['pn_user_name']
+    action = module.params['pn_action']
     auth = module.params['pn_auth']
     priv = module.params['pn_priv']
-    user_name = module.params['pn_user_name']
+    auth_pass = module.params['pn_auth_pass']
+    priv_pass = module.params['pn_priv_pass']
+    auth_hash = module.params['pn_auth_hash']
 
-    command = get_command_from_state(state)
-
-    # Building the CLI command string
-    cli = pn_cli(module)
-
-    if command == 'snmp-user-delete':
-        check_cli(module, cli)
-        if USER_EXISTS is False:
+    if action == 'create':
+        if check_user(module, user_name):
             module.exit_json(
-                skipped=True,
-                msg='snmp-user with name %s does not exist' % user_name
+                msg='snmp-user with name %s \
+                     already present in the switch' % user_name
             )
-        cli += ' %s user-name %s ' % (command, user_name)
+    elif action == 'delete' or action == 'modify':
+        if not check_user(module, user_name):
+            module.fail_json(
+                msg='snmp-user with name %s \
+                     not present in the switch' % user_name
+            )
     else:
-        if command == 'snmp-user-create':
-            check_cli(module, cli)
-            if USER_EXISTS is True:
-                module.exit_json(
-                     skipped=True,
-                     msg='snmp user with name %s already exists' % user_name
-                )
-        cli += ' %s user-name %s ' % (command, user_name)
-        if auth_password:
-            cli += ' auth-password ' + auth_password
-        if priv_password:
-            cli += ' priv-password ' + priv_password
-        if auth_hash:
-            cli += ' auth-hash ' + auth_hash
-        if auth:
-            if auth is True:
-                cli += ' auth '
-            else:
-                cli += ' no-auth '
+        module.fail_json(
+            msg='snmp-user action %s not supported \
+                 in this playbook. Use create/delete' % action
+        )
+
+    cli = pn_cli(module)
+    cli += ' snmp-user-'+ action + ' user-name ' + user_name
+
+    pass_args = ""
+    if action != 'delete':
+        if auth or auth_hash:
+            cli += ' auth'
+            cli += ' auth-password'
+	    pass_args += 'auth-password %s ' % (auth_pass)
+            if auth_hash:
+                cli += ' auth-hash %s' % auth_hash
+        else:
+            cli += ' no-auth'
+
         if priv:
-            if priv is True:
-                cli += ' priv '
-            else:
-                cli += ' no-priv '
+            cli += ' priv'
+            cli += ' priv-password'
+	    pass_args += 'priv-password %s' % (priv_pass)
+        else:
+            cli += ' no-priv'
 
-    run_cli(module, cli)
-
+    run_cli(module, cli, pass_args)
 
 if __name__ == '__main__':
     main()

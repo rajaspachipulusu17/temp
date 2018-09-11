@@ -15,17 +15,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-ANSIBLE_METADATA = {'metadata_version': '1.1',
-                    'status': ['preview'],
-                    'supported_by': 'community'}
-
+import shlex
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.pn_nvos import pn_cli
 
 DOCUMENTATION = """
 ---
 module: pn_access_list_ip
 author: "Pluribus Networks (devops@pluribusnetworks.com)"
-version_added: "2.7"
+version: 2
 short_description: CLI command to add/remove access-list-ip.
 description:
   - C(add): Add IPs associated with access list
@@ -36,11 +34,12 @@ options:
       - Target switch to run the CLI on.
     required: False
     type: str
-  state:
+  pn_action:
     description:
-      - State the action to perform. Use 'present' to add access-list-ip and
-      'absent' to remove access-list-ip.
-    required: True
+      - access-list-ip configuration command.
+    required: true
+    choices: ['add', 'remove']
+    type: str
   pn_ip:
     description:
       - IP associated with the access list
@@ -56,17 +55,15 @@ options:
 EXAMPLES = """
 - name: add ip to access list
   pn_access_list_ip:
-    pn_cliswitch: "192.168.1.1".
-    pn_name: "foo"
-    pn_ip: "172.16.3.1"
-    state: "present"
+    pn_action: 'add'
+    pn_name: 'block_src'
+    pn_ip: 'fe80::640e:94ff:fe27:5f0f'
 
-- name: remove ip to access list
+- name: remove ip from access list
   pn_access_list_ip:
-    pn_cliswitch: "192.168.1.1".
-    pn_name: "foo"
-    pn_ip: "172.16.3.1"
-    state: "absent"
+    pn_action: 'remove'
+    pn_name: 'block_src'
+    pn_ip: 'fe80::640e:94ff:fe27:5f0f'
 """
 
 RETURN = """
@@ -86,10 +83,6 @@ changed:
   type: bool
 """
 
-import shlex
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.pn_nvos import pn_cli
-
 
 def run_cli(module, cli):
     """
@@ -98,78 +91,33 @@ def run_cli(module, cli):
     :param cli: the complete cli string to be executed on the target node(s).
     :param module: The Ansible module to fetch command
     """
-    cliswitch = module.params['pn_cliswitch']
-    state = module.params['state']
-    command = get_command_from_state(state)
-
-    cmd = shlex.split(cli)
-
-    # 'out' contains the output
-    # 'err' contains the error messages
-    result, out, err = module.run_command(cmd)
-
-    print_cli = cli.split(cliswitch)[0]
+    action = module.params['pn_action']
+    cli = shlex.split(cli)
+    rc, out, err = module.run_command(cli)
 
     # Response in JSON format
-    if result != 0:
-        module.exit_json(
-            command=print_cli,
+    if err:
+        module.fail_json(
+            command=' '.join(cli),
             stderr=err.strip(),
-            msg="%s operation failed" % command,
+            msg="access-list-ip %s operation failed" % action,
             changed=False
         )
 
     if out:
         module.exit_json(
-            command=print_cli,
+            command=' '.join(cli),
             stdout=out.strip(),
-            msg="%s operation completed" % command,
+            msg="access-list-ip %s operation completed" % action,
             changed=True
         )
 
     else:
         module.exit_json(
-            command=print_cli,
-            msg="%s operation completed" % command,
+            command=' '.join(cli),
+            msg="access-list-ip %s operation completed" % action,
             changed=True
         )
-
-
-def check_cli(module, cli):
-    """
-    This method checks for idempotency using the snmp-user-show command.
-    If a user with given name exists, return USER_EXISTS as True else False.
-    :param module: The Ansible module to fetch input parameters
-    :param cli: The CLI string
-    :return Global Booleans: USER_EXISTS
-    """
-    name = module.params['pn_name']
-    ip = module.params['pn_ip']
-
-    show = cli + \
-        ' access-list-ip-show name %s format ip no-show-headers' % name
-    show = shlex.split(show)
-    out = module.run_command(show)[1]
-
-    out = out.split()
-    # Global flags
-    global IP_EXISTS
-
-    IP_EXISTS = True if ip in out else False
-
-
-def get_command_from_state(state):
-    """
-    This method gets appropriate command name for the state specified. It
-    returns the command name for the specified state.
-    :param state: The state for which the respective command name is required.
-    """
-    command = None
-    if state == 'present':
-        command = 'access-list-ip-add'
-    if state == 'absent':
-        command = 'access-list-ip-remove'
-    return command
 
 
 def main():
@@ -177,44 +125,27 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             pn_cliswitch=dict(required=False, type='str'),
-            state=dict(required=True, type='str',
-                       choices=['present', 'absent']),
+            pn_action=dict(required=True, type='str',
+                           choices=['add', 'remove']),
             pn_ip=dict(required=False, type='str'),
             pn_name=dict(required=False, type='str'),
-        ),
-        required_together=[['pn_name', 'pn_ip']],
+        )
     )
 
     # Accessing the arguments
-    state = module.params['state']
+    action = module.params['pn_action']
     ip = module.params['pn_ip']
     name = module.params['pn_name']
 
-    command = get_command_from_state(state)
-
     # Building the CLI command string
     cli = pn_cli(module)
-
-    if command == 'access-list-ip-remove':
-        check_cli(module, cli)
-        if IP_EXISTS is False:
-            module.exit_json(
-                skipped=True,
-                msg='access-list with ip %s does not exist' % ip
-            )
-        cli += ' %s name %s ip %s ' % (command, name, ip)
-    else:
-        if command == 'access-list-ip-add':
-            check_cli(module, cli)
-            if IP_EXISTS is True:
-                module.exit_json(
-                     skipped=True,
-                     msg='access list with ip %s already exists' % ip
-                )
-        cli += ' %s name %s ip %s ' % (command, name, ip)
-
+    cli += 'access-list-ip-' + action
+    if ip:
+        cli += ' ip ' + ip
+    if name:
+        cli += ' name ' + name
+    
     run_cli(module, cli)
-
 
 if __name__ == '__main__':
     main()

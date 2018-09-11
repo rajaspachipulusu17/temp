@@ -121,7 +121,7 @@ def main():
         for row in csv_data_list:
             row = row.strip()
             line_count += 1
-            if row.startswith('#'):
+            if not row or row.startswith('#'):
                 # Skip comments which starts with '#'
                 continue
             else:
@@ -159,7 +159,11 @@ def main():
                                 address = address_with_subnet[0]
                                 subnet = address_with_subnet[1]
                                 dot_count = address.count('.')
+                                addr = int(address.split('.')[3])
                                 if dot_count != 3 or address in existing_ip:
+                                    raise socket.error
+
+                                if addr == 0 or addr >= 255:
                                     raise socket.error
 
                                 socket.inet_aton(address)
@@ -185,7 +189,8 @@ def main():
                         active_switch = elements[5]
 
                         if not switch2 or not vrrp_id or not active_switch:
-                            output += 'Invalid entry at line number {}\n'.format(
+                            output += 'Invalid entry at '
+                            output += 'line number {}\n'.format(
                                 line_count
                             )
                         else:
@@ -214,8 +219,9 @@ def main():
                                         tuple(clustered_leafs)] = vrrp_id
                                 else:
                                     if existing_vrrp_id != vrrp_id:
-                                        output += 'Vrrp id cannot be different '
-                                        output += 'at line number {}\n'.format(
+                                        output += 'Vrrp id cannot be '
+                                        output += 'different at line '
+                                        output += 'number {}\n'.format(
                                             line_count)
 
                             # Active switch name validation
@@ -249,4 +255,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

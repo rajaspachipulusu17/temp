@@ -296,7 +296,7 @@ def create_cluster(module, switch, name, node1, node2):
     cli = pn_cli(module)
     clicopy = cli
     cli += ' switch %s cluster-show format name no-show-headers ' % node1
-    cluster_list = run_cli(module, cli).split()
+    cluster_list = list(set(run_cli(module, cli).split()))
     if name not in cluster_list:
         cli = clicopy
         cli += ' switch %s cluster-create name %s ' % (switch, name)
@@ -434,21 +434,27 @@ def configure_vrrp(module, csv_data):
     """
     output = ''
     vrrp_ipv6 = ''
+    vrrp_ip = ''
+    addr_type = module.params['pn_addr_type']
 
     csv_data = csv_data.strip()
     csv_data_list = csv_data.split('\n')
     # Parse csv file data and configure VRRP.
     for row in csv_data_list:
-        row = row.strip()
-        if row.startswith('#'):
+        if not row or row.startswith('#'):
             continue
         else:
+            row = row.strip()
             elements = row.split(',')
             elements = filter(None, elements)
+            if any(field.strip() for field in row):
+                vlan_id = elements.pop(0).strip()
+            else:
+                continue
             switch_list = []
-            vlan_id = elements.pop(0).strip()
-            vrrp_ip = elements.pop(0).strip()
-            if module.params['pn_addr_type'] == 'ipv4_ipv6':
+            if addr_type == 'ipv4_ipv6' or addr_type == 'ipv4':
+                vrrp_ip = elements.pop(0).strip()
+            if addr_type == 'ipv4_ipv6' or addr_type == 'ipv6':
                 vrrp_ipv6 = elements.pop(0).strip()
             leaf_switch_1 = elements.pop(0).strip()
             if module.params['pn_current_switch'] == leaf_switch_1:
@@ -458,16 +464,17 @@ def configure_vrrp(module, csv_data):
                     active_switch = elements.pop(0).strip()
                     switch_list.append(leaf_switch_1)
                     switch_list.append(leaf_switch_2)
-                    output += configure_vrrp_for_clustered_switches(module, vrrp_id,
-                                                                    vrrp_ip, vrrp_ipv6,
-                                                                    active_switch,
-                                                                    vlan_id,
-                                                                    switch_list)
-
+                    output += configure_vrrp_for_clustered_switches(
+                        module,
+                        vrrp_id,
+                        vrrp_ip,
+                        vrrp_ipv6,
+                        active_switch,
+                        vlan_id,
+                        switch_list)
                 else:
                     output += configure_vrrp_for_non_clustered_switches(
                         module, vlan_id, vrrp_ip, vrrp_ipv6, leaf_switch_1)
-
     return output
 
 

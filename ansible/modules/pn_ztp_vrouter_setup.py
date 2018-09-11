@@ -198,10 +198,6 @@ def assign_loopback_and_router_id(module, loopback_address, current_switch):
     cli = pn_cli(module)
 
     switch_list = spine_list + leaf_list
-#    if current_switch in spine_list:
-#        count = spine_list.index(current_switch)
-#    elif current_switch in leaf_list:
-#        count = leaf_list.index(current_switch)
 
     if current_switch in switch_list:
         count = switch_list.index(current_switch)
@@ -280,8 +276,8 @@ def main():
             pn_loopback_ip=dict(required=False, type='str', default='109.109.109.1/32'),
             pn_vrrp_id=dict(required=False, type='str', default='18'),
             pn_current_switch=dict(required=False, type='str'),
-            pn_spine_list=dict(required=True, type='list'),
-            pn_leaf_list=dict(required=True, type='list'),
+            pn_spine_list=dict(required=False, type='list', default=[]),
+            pn_leaf_list=dict(required=False, type='list', default=[]),
             pn_pim_ssm=dict(required=False, type='bool', default=False),
             pn_ospf_redistribute=dict(required=False, type='str',
                                       choices=['none', 'static', 'connected',

@@ -15,17 +15,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-ANSIBLE_METADATA = {'metadata_version': '1.1',
-                    'status': ['preview'],
-                    'supported_by': 'community'}
-
+import shlex
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.pn_nvos import pn_cli
 
 DOCUMENTATION = """
 ---
 module: pn_port_config
 author: "Pluribus Networks (devops@pluribusnetworks.com)"
-version_added: "2.7"
+version: 2
 short_description: CLI command to modify port-config.
 description:
   - C(modify): modify a port configuration
@@ -35,10 +33,12 @@ options:
       - Target switch to run the CLI on.
     required: False
     type: str
-  state:
+  pn_action:
     description:
-      - State the action to perform. Use 'update' to modify the port-config.
-    required: True
+      - port-config configuration command.
+    required: true
+    choices: ['modify']
+    type: str
   pn_intf:
     description:
       - physical interface
@@ -63,8 +63,7 @@ options:
     description:
       - physical port speed
     required: false
-    choices: ['disable', '10m', '100m', '1g', '2.5g',
-              '10g', '25g', '40g', '50g', '100g']
+    choices: ['disable', '10m', '100m', '1g', '2.5g', '10g', '25g', '40g', '50g', '100g']
   pn_port:
     description:
       - physical port
@@ -78,11 +77,6 @@ options:
   pn_pause:
     description:
       - physical port pause
-    required: false
-    type: bool
-  pn_fec:
-    description:
-      - port forward error correction (FEC) mode
     required: false
     type: bool
   pn_loopback:
@@ -124,7 +118,7 @@ options:
     description:
       - Allowed TPID in addition to 0x8100 on Vlan header
     required: false
-    choices: ['vlan', 'q-in-q', 'q-in-q-old']
+    choices: ['q-in-q', 'q-in-q-old']
   pn_mirror_only:
     description:
       - physical port mirror only
@@ -149,7 +143,7 @@ options:
     description:
       - physical Ethernet mode
     required: false
-    choices: ['1000base-x', 'sgmii', 'disabled', 'GMII']
+    choices: ['1000base-x', 'sgmii']
   pn_fabric_guard:
     description:
       - Fabric guard contfiguration
@@ -157,8 +151,7 @@ options:
     type: bool
   pn_local_switching:
     description:
-      - no-local-switching port cannot bridge traffic to
-        another no-local-switching port
+      - no-local-switching port cannot bridge traffic to another no-local-switching port
     required: false
     type: bool
   pn_lacp_priority:
@@ -176,26 +169,20 @@ options:
       - physical port MAC Address
     required: false
     type: str
-  pn_defer_bringup:
+  pn_bw_bps:
     description:
-      - defer port bringup
+      - trunk bandwidth in bps
     required: false
-    type: bool
+    type: str
 """
 
 EXAMPLES = """
 - name: port config modify
   pn_port_config:
-    pn_cliswitch: "192.168.1.1"
-    state: "update"
+    pn_cliswitch: "{{ inventory_hostname }}"
+    pn_action: "modify"
     pn_port: "all"
-    pn_dscp_map: "foo"
-
-- name: port config modify
-  pn_port_config:
-    state: "update"
-    pn_port: "all"
-    pn_host_enable: True
+    pn_dscp_map: "verizon_qos"
 """
 
 RETURN = """
@@ -215,10 +202,6 @@ changed:
   type: bool
 """
 
-import shlex
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.pn_nvos import pn_cli
-
 
 def run_cli(module, cli):
     """
@@ -227,50 +210,33 @@ def run_cli(module, cli):
     :param cli: the complete cli string to be executed on the target node(s).
     :param module: The Ansible module to fetch command
     """
-    cliswitch = module.params['pn_cliswitch']
-    state = module.params['state']
-    command = get_command_from_state(state)
-
-    cmd = shlex.split(cli)
-    result, out, err = module.run_command(cmd)
-
-    print_cli = cli.split(cliswitch)[0]
+    action = module.params['pn_action']
+    cli = shlex.split(cli)
+    rc, out, err = module.run_command(cli)
 
     # Response in JSON format
     if err:
         module.fail_json(
-            command=print_cli,
+            command=' '.join(cli),
             stderr=err.strip(),
-            msg="port-config %s operation failed" % cmd,
+            msg="port-config %s operation failed" % action,
             changed=False
         )
 
     if out:
         module.exit_json(
-            command=print_cli,
+            command=' '.join(cli),
             stdout=out.strip(),
-            msg="port-config %s operation completed" % cmd,
+            msg="port-config %s operation completed" % action,
             changed=True
         )
 
     else:
         module.exit_json(
-            command=print_cli,
-            msg="port-config %s operation completed" % cmd,
+            command=' '.join(cli),
+            msg="port-config %s operation completed" % action,
             changed=True
         )
-
-
-def get_command_from_state(state):
-    """
-    This method gets appropriate command name for the state specified. It
-    returns the command name for the specified state.
-    :param state: The state for which the respective command name is required.
-    """
-    command = None
-    if state == 'update':
-        command = 'port-config-modify'
-    return command
 
 
 def main():
@@ -278,20 +244,18 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             pn_cliswitch=dict(required=False, type='str'),
-            state=dict(required=True, type='str',
-                       choices=['update']),
+            pn_action=dict(required=True, type='str', choices=['modify']),
             pn_intf=dict(required=False, type='str'),
             pn_crc_check_enable=dict(required=False, type='bool'),
             pn_dscp_map=dict(required=False, type='str'),
             pn_autoneg=dict(required=False, type='bool'),
-            pn_speed=dict(required=False, type='str',
-                          choices=['disable', '10m', '100m', '1g',
-                                   '2.5g', '10g', '25g', '40g',
-                                   '50g', '100g']),
-            pn_port=dict(required=True, type='str'),
+            pn_speed=dict(required=False, type='str', choices=['disable',
+                                                      '10m', '100m', '1g',
+                                                      '2.5g', '10g', '25g',
+                                                      '40g', '50g', '100g']),
+            pn_port=dict(required=False, type='str'),
             pn_vxlan_termination=dict(required=False, type='bool'),
             pn_pause=dict(required=False, type='bool'),
-            pn_fec=dict(required=False, type='bool'),
             pn_loopback=dict(required=False, type='bool'),
             pn_loop_vlans=dict(required=False, type='str'),
             pn_routing=dict(required=False, type='bool'),
@@ -300,38 +264,25 @@ def main():
             pn_description=dict(required=False, type='str'),
             pn_host_enable=dict(required=False, type='bool'),
             pn_allowed_tpid=dict(required=False, type='str',
-                                 choices=['vlan', 'q-in-q', 'q-in-q-old']),
+                                 choices=['q-in-q', 'q-in-q-old']),
             pn_mirror_only=dict(required=False, type='bool'),
             pn_reflect=dict(required=False, type='bool'),
             pn_jumbo=dict(required=False, type='bool'),
             pn_egress_rate_limit=dict(required=False, type='str'),
             pn_eth_mode=dict(required=False, type='str',
-                             choices=['1000base-x', 'sgmii',
-                                      'disabled', 'GMII']),
+                             choices=['1000base-x', 'sgmii']),
             pn_fabric_guard=dict(required=False, type='bool'),
             pn_local_switching=dict(required=False, type='bool'),
             pn_lacp_priority=dict(required=False, type='str'),
             pn_send_port=dict(required=False, type='str'),
             pn_port_mac_address=dict(required=False, type='str'),
-            pn_defer_bringup=dict(required=False, type='bool'),
-        ),
-        required_one_of=[['pn_intf', 'pn_crc_check_enable', 'pn_dscp_map',
-                          'pn_speed', 'pn_autoneg',
-                          'pn_vxlan_termination', 'pn_pause',
-                          'pn_fec', 'pn_loopback', 'pn_loop_vlans',
-                          'pn_routing', 'pn_edge_switch',
-                          'pn_enable', 'pn_description',
-                          'pn_host_enable', 'pn_allowed_tpid',
-                          'pn_mirror_only', 'pn_reflect',
-                          'pn_jumbo', 'pn_egress_rate_limit',
-                          'pn_eth_mode', 'pn_fabric_guard',
-                          'pn_local_switching', 'pn_lacp_priority',
-                          'pn_send_port', 'pn_port_mac_address',
-                          'pn_defer_bringup']],
+            pn_bw_bps=dict(required=False, type='str'),
+        )
     )
 
     # Accessing the arguments
-    state = module.params['state']
+    switch = module.params['pn_cliswitch']
+    mod_action = module.params['pn_action']
     intf = module.params['pn_intf']
     crc_check_enable = module.params['pn_crc_check_enable']
     dscp_map = module.params['pn_dscp_map']
@@ -340,7 +291,6 @@ def main():
     port = module.params['pn_port']
     vxlan_termination = module.params['pn_vxlan_termination']
     pause = module.params['pn_pause']
-    fec = module.params['pn_fec']
     loopback = module.params['pn_loopback']
     loop_vlans = module.params['pn_loop_vlans']
     routing = module.params['pn_routing']
@@ -359,106 +309,110 @@ def main():
     lacp_priority = module.params['pn_lacp_priority']
     send_port = module.params['pn_send_port']
     port_mac_address = module.params['pn_port_mac_address']
-    defer_bringup = module.params['pn_defer_bringup']
-
-    command = get_command_from_state(state)
+    bw_bps = module.params['pn_bw_bps']
 
     # Building the CLI command string
-    cli = pn_cli(module)
-
-    if command == 'port-config-modify':
-        cli += ' %s ' % command
+    cli = pn_cli(module, switch)
+    cli += ' port-config-' + mod_action
+    if mod_action in ['modify']:
         if intf:
             cli += ' intf ' + intf
         if crc_check_enable:
-            cli += ' crc-check-enable '
-        else:
-            cli += ' crc-check-disable '
+            if crc_check_enable is True:
+                cli += ' crc-check-enable '
+            else:
+                cli += ' crc-check-disable '
         if dscp_map:
             cli += ' dscp-map ' + dscp_map
         if autoneg:
-            cli += ' autoneg '
-        else:
-            cli += ' no-autoneg '
+            if autoneg is True:
+                cli += ' autoneg '
+            else:
+                cli += ' no-autoneg '
         if speed:
             cli += ' speed ' + speed
         if port:
             cli += ' port ' + port
+        if enable:
+            if enable is True:
+                cli += ' enable'
+            else:
+                cli += ' disable'
         if vxlan_termination:
-            cli += ' vxlan-termination '
-        else:
-            cli += ' no-vxlan-termination '
+            if vxlan_termination is True:
+                cli += ' vxlan-termination '
+            else:
+                cli += ' no-vxlan-termination '
         if pause:
-            cli += ' pause '
-        else:
-            cli += ' no-pause '
-        if fec:
-            cli += ' fec '
-        else:
-            cli += ' no-fec '
+            if pause is True:
+                cli += ' pause '
+            else:
+                cli += ' no-pause '
         if loopback:
-            cli += ' loopback '
-        else:
-            cli += ' no-loopback '
+            if loopback is True:
+                cli += ' loopback '
+            else:
+                cli += ' no-loopback '
         if loop_vlans:
             cli += ' loop-vlans ' + loop_vlans
         if routing:
-            cli += ' routing '
-        else:
-            cli += ' no-routing '
+            if routing is True:
+                cli += ' routing '
+            else:
+                cli += ' no-routing '
         if edge_switch:
-            cli += ' edge-switch '
-        else:
-            cli += ' no-edge-switch '
-        if enable:
-            cli += ' enable '
-        else:
-            cli += ' disable '
+            if edge_switch is True:
+                cli += ' edge-switch '
+            else:
+                cli += ' no-edge-switch '
         if description:
             cli += ' description ' + description
         if host_enable:
-            cli += ' host-enable '
-        else:
-            cli += ' host-disable '
+            if host_enable is True:
+                cli += ' host-enable '
+            else:
+                cli += ' host-disable '
         if allowed_tpid:
             cli += ' allowed-tpid ' + allowed_tpid
         if mirror_only:
-            cli += ' mirror-only '
-        else:
-            cli += ' no-mirror-receive-only '
+            if mirror_only is True:
+                cli += ' mirror-only '
+            else:
+                cli += ' no-mirror-receive-only '
         if reflect:
-            cli += ' reflect '
-        else:
-            cli += ' no-reflect '
+            if reflect is True:
+                cli += ' reflect '
+            else:
+                cli += ' no-reflect '
         if jumbo:
-            cli += ' jumbo '
-        else:
-            cli += ' no-jumbo '
+            if jumbo is True:
+                cli += ' jumbo '
+            else:
+                cli += ' no-jumbo '
         if egress_rate_limit:
             cli += ' egress-rate-limit ' + egress_rate_limit
         if eth_mode:
             cli += ' eth-mode ' + eth_mode
         if fabric_guard:
-            cli += ' fabric-guard '
-        else:
-            cli += ' no-fabric-guard '
+            if fabric_guard is True:
+                cli += ' fabric-guard '
+            else:
+                cli += ' no-fabric-guard '
         if local_switching:
-            cli += ' local-switching '
-        else:
-            cli += ' no-local-switching '
+            if local_switching is True:
+                cli += ' local-switching '
+            else:
+                cli += ' no-local-switching '
         if lacp_priority:
             cli += ' lacp-priority ' + lacp_priority
         if send_port:
             cli += ' send-port ' + send_port
         if port_mac_address:
             cli += ' port-mac-address ' + port_mac_address
-        if defer_bringup:
-            cli += ' defer-bringup '
-        else:
-            cli += ' no-defer-bringup '
+        if bw_bps:
+            cli += ' bw-bps ' + bw_bps
 
     run_cli(module, cli)
-
 
 if __name__ == '__main__':
     main()

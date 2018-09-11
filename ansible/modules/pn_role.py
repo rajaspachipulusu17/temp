@@ -1,5 +1,5 @@
 #!/usr/bin/python
-""" PN CLI role-create/delete """
+""" PN CLI role-create/modify/delete """
 #
 # This file is part of Ansible
 #
@@ -17,33 +17,32 @@
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from __future__ import absolute_import, division, print_function
-__metaclass__ = type
-
-ANSIBLE_METADATA = {'metadata_version': '1.1',
-                    'status': ['preview'],
-                    'supported_by': 'community'}
-
+import shlex
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.pn_nvos import pn_cli
 
 DOCUMENTATION = """
 ---
 module: pn_role
 author: "Pluribus Networks (devops@pluribusnetworks.com)"
-version_added: "2.7"
-short_description: CLI command to create/delete role.
+version: 2
+short_description: CLI command to create/modify/delete role.
 description:
   - C(create): create user roles
+  - C(modify): modify user roles
   - C(delete): delete user roles
 options:
   pn_cliswitch:
     description:
       - Target switch to run the CLI on.
     required: False
-  state:
+    type: str
+  pn_action:
     description:
-      - State the action to perform. Use 'present' to create role and
-        'absent' to delete role and 'update' to modify role.
-    required: True
+      - role configuration command.
+    required: true
+    choices: ['create', 'modify', 'delete']
+    type: str
   pn_scope:
     description:
       - local or fabric
@@ -58,44 +57,35 @@ options:
     description:
       - allow shell command
     required: false
+    type: bool
   pn_sudo:
     description:
       - allow sudo from shell
     required: false
+    type: bool
   pn_running_config:
     description:
       - display running configuration of switch
     required: false
+    type: bool
   pn_name:
     description:
       - role name
-    required: True
+    required: false
+    type: str
   pn_delete_from_users:
     description:
       - delete from users
     required: false
+    type: str
 """
 
 EXAMPLES = """
 - name: role functionality
   pn_role:
-    pn_cliswitch: '192.168.1.1'
-    state: 'present'
-    pn_name: 'enss'
-    pn_scope: 'local'
-
-- name: role functionality
-  pn_role:
-    pn_cliswitch: '192.168.1.1'
-    state: 'absent'
-    pn_name: 'enss'
-
-- name: role functionality
-  pn_role:
-    pn_cliswitch: "192.168.1.1"
-    state: "update"
-    pn_name: "enss"
-    pn_sudo: True
+    pn_action: "create"
+    pn_name: "abcd"
+    pn_scope: "local"
 """
 
 RETURN = """
@@ -116,15 +106,6 @@ changed:
 """
 
 
-import shlex
-
-# AnsibleModule boilerplate
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.pn_nvos import pn_cli
-
-ROLE_EXISTS = None
-
-
 def run_cli(module, cli):
     """
     This method executes the cli command on the target node(s) and returns the
@@ -132,75 +113,33 @@ def run_cli(module, cli):
     :param cli: the complete cli string to be executed on the target node(s).
     :param module: The Ansible module to fetch command
     """
-    cliswitch = module.params['pn_cliswitch']
-    state = module.params['state']
-    command = get_command_from_state(state)
-
-    cmd = shlex.split(cli)
-    result, out, err = module.run_command(cmd)
-
-    print_cli = cli.split(cliswitch)[0]
+    action = module.params['pn_action']
+    cli = shlex.split(cli)
+    rc, out, err = module.run_command(cli)
 
     # Response in JSON format
-    if result != 0:
+    if err:
         module.exit_json(
-            command=print_cli,
+            command=' '.join(cli),
             stderr=err.strip(),
-            msg="role %s operation failed" % cmd,
+            msg="role %s operation failed" % action,
             changed=False
         )
 
     if out:
         module.exit_json(
-            command=print_cli,
+            command=' '.join(cli),
             stdout=out.strip(),
-            msg="role %s operation completed" % cmd,
+            msg="role %s operation completed" % action,
             changed=True
         )
 
     else:
         module.exit_json(
-            command=print_cli,
-            msg="role %s operation completed" % cmd,
+            command=' '.join(cli),
+            msg="role %s operation completed" % action,
             changed=True
         )
-
-
-def check_cli(module, cli):
-    """
-    This method checks for idempotency using the role-show command.
-    If a role with given name exists, return ROLE_EXISTS as True else False.
-    :param module: The Ansible module to fetch input parameters
-    :param cli: The CLI string
-    :return Global Booleans: ROLE_EXISTS
-    """
-    role_name = module.params['pn_name']
-
-    show = cli + \
-        ' role-show format name no-show-headers'
-    show = shlex.split(show)
-    out = module.run_command(show)[1]
-
-    out = out.split()
-    # Global flags
-    global ROLE_EXISTS
-    ROLE_EXISTS = True if role_name in out else False
-
-
-def get_command_from_state(state):
-    """
-    This method gets appropriate command name for the state specified. It
-    returns the command name for the specified state.
-    :param state: The state for which the respective command name is required.
-    """
-    command = None
-    if state == 'present':
-        command = 'role-create'
-    if state == 'absent':
-        command = 'role-delete'
-    if state == 'update':
-        command = 'role-modify'
-    return command
 
 
 def main():
@@ -208,8 +147,8 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             pn_cliswitch=dict(required=False, type='str'),
-            state=dict(required=True, type='str',
-                       choices=['present', 'absent', 'update']),
+            pn_action=dict(required=True, type='str',
+                        choices=['create', 'modify', 'delete']),
             pn_scope=dict(required=False, type='str',
                           choices=['local', 'fabric']),
             pn_access=dict(required=False, type='str',
@@ -219,17 +158,12 @@ def main():
             pn_running_config=dict(required=False, type='bool'),
             pn_name=dict(required=False, type='str'),
             pn_delete_from_users=dict(required=False, type='str'),
-        ),
-        required_if=(
-            ["state", "present", ["pn_name", "pn_scope"]],
-            ["state", "absent", ["pn_name"]],
-            ["state", "update", ["pn_name"]],
-            ),
-        required_one_of=[['pn_name', 'pn_access', 'pn_shell', 'pn_sudo']]
         )
+    )
 
     # Accessing the arguments
-    state = module.params['state']
+    switch = module.params['pn_cliswitch']
+    mod_action = module.params['pn_action']
     scope = module.params['pn_scope']
     access = module.params['pn_access']
     shell = module.params['pn_shell']
@@ -238,32 +172,13 @@ def main():
     name = module.params['pn_name']
     delete_from_users = module.params['pn_delete_from_users']
 
-    command = get_command_from_state(state)
-
     # Building the CLI command string
-    cli = pn_cli(module)
-
-    if command == 'role-delete':
-        check_cli(module, cli)
-        if ROLE_EXISTS is False:
-            module.exit_json(
-                skipped=True,
-                msg='Role with name %s does not exist' % name
-            )
-        cli += ' %s name %s ' % (command, name)
-    else:
-        if command == 'role-create':
-            check_cli(module, cli)
-            if ROLE_EXISTS is True:
-                module.exit_json(
-                     skipped=True,
-                     msg='Role with name %s already exists' % name
-                )
-        cli += ' %s name %s ' % (command, name)
-
+    cli = pn_cli(module, switch)
+    cli += ' role-' + mod_action
+    if mod_action in ['create']:
         if scope:
             cli += ' scope ' + scope
-
+    if mod_action in ['create', 'modify']:
         if access:
             cli += ' access ' + access
         if shell:
@@ -281,9 +196,15 @@ def main():
                 cli += ' running-config '
             else:
                 cli += ' no-running-config '
+    if mod_action in ['create', 'delete', 'modify']:
+        if name:
+            cli += ' name ' + name
+
+    if mod_action in ['modify']:
+        if delete_from_users:
+            cli += ' delete-from-users ' + delete_from_users
 
     run_cli(module, cli)
-
 
 if __name__ == '__main__':
     main()

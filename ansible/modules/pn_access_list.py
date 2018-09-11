@@ -15,17 +15,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-ANSIBLE_METADATA = {'metadata_version': '1.1',
-                    'status': ['preview'],
-                    'supported_by': 'community'}
-
+import shlex
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.pn_nvos import pn_cli
 
 DOCUMENTATION = """
 ---
 module: pn_access_list
 author: "Pluribus Networks (devops@pluribusnetworks.com)"
-version_added: "2.7"
+version: 2
 short_description: CLI command to create/delete access-list.
 description:
   - C(create): create an access list
@@ -36,11 +34,12 @@ options:
       - Target switch to run the CLI on.
     required: False
     type: str
-  state:
+  pn_action:
     description:
-      - State the action to perform. Use 'present' to create access-list and
-        'absent' to delete access-list.
-    required: True
+      - access-list configuration command.
+    required: true
+    choices: ['create', 'delete']
+    type: str
   pn_name:
     description:
       - Access List Name
@@ -54,26 +53,16 @@ options:
 """
 
 EXAMPLES = """
-- name: access list functionality
+- name: create access list
   pn_access_list:
-    pn_cliswitch: "192.168.1.1"
-    pn_name: "foo"
-    pn_scope: "local"
-    state: "present"
+    pn_action: 'create'
+    pn_name: 'block_src'
+    pn_scope: 'local'
 
-- name: access list functionality
+- name: delete access list
   pn_access_list:
-    pn_cliswitch: "192.168.1.1"
-    pn_name: "foo"
-    pn_scope: "local"
-    state: "absent"
-
-- name: access list functionality
-  pn_access_list:
-    pn_cliswitch: "192.168.1.1"
-    pn_name: "foo"
-    pn_scope: "fabric"
-    state: "present"
+    pn_action: 'delete'
+    pn_name: 'block_src'
 """
 
 RETURN = """
@@ -93,10 +82,6 @@ changed:
   type: bool
 """
 
-import shlex
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.pn_nvos import pn_cli
-
 
 def run_cli(module, cli):
     """
@@ -105,77 +90,33 @@ def run_cli(module, cli):
     :param cli: the complete cli string to be executed on the target node(s).
     :param module: The Ansible module to fetch command
     """
-    cliswitch = module.params['pn_cliswitch']
-    state = module.params['state']
-    command = get_command_from_state(state)
-
-    cmd = shlex.split(cli)
-
-    # 'out' contains the output
-    # 'err' contains the error messages
-    result, out, err = module.run_command(cmd)
-
-    print_cli = cli.split(cliswitch)[0]
+    action = module.params['pn_action']
+    cli = shlex.split(cli)
+    rc, out, err = module.run_command(cli)
 
     # Response in JSON format
-    if result != 0:
-        module.exit_json(
-            command=print_cli,
+    if err:
+        module.fail_json(
+            command=' '.join(cli),
             stderr=err.strip(),
-            msg="%s operation failed" % command,
+            msg="access-list %s operation failed" % action,
             changed=False
         )
 
     if out:
         module.exit_json(
-            command=print_cli,
+            command=' '.join(cli),
             stdout=out.strip(),
-            msg="%s operation completed" % command,
+            msg="access-list %s operation completed" % action,
             changed=True
         )
 
     else:
         module.exit_json(
-            command=print_cli,
-            msg="%s operation completed" % command,
+            command=' '.join(cli),
+            msg="access-list %s operation completed" % action,
             changed=True
         )
-
-
-def check_cli(module, cli):
-    """
-    This method checks for idempotency using the snmp-user-show command.
-    If a user with given name exists, return USER_EXISTS as True else False.
-    :param module: The Ansible module to fetch input parameters
-    :param cli: The CLI string
-    :return Global Booleans: USER_EXISTS
-    """
-    list_name = module.params['pn_name']
-
-    show = cli + \
-        ' access-list-show format name no-show-headers'
-    show = shlex.split(show)
-    out = module.run_command(show)[1]
-
-    out = out.split()
-    # Global flags
-    global ACC_LIST_EXISTS
-
-    ACC_LIST_EXISTS = True if list_name in out else False
-
-
-def get_command_from_state(state):
-    """
-    This method gets appropriate command name for the state specified. It
-    returns the command name for the specified state.
-    :param state: The state for which the respective command name is required.
-    """
-    command = None
-    if state == 'present':
-        command = 'access-list-create'
-    if state == 'absent':
-        command = 'access-list-delete'
-    return command
 
 
 def main():
@@ -183,46 +124,29 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             pn_cliswitch=dict(required=False, type='str'),
-            state=dict(required=True, type='str',
-                       choices=['present', 'absent']),
+            pn_action=dict(required=True, type='str',
+                        choices=['create', 'delete']),
             pn_name=dict(required=False, type='str'),
             pn_scope=dict(required=False, type='str',
                           choices=['local', 'fabric']),
-        ),
-        required_together=[['pn_name', 'pn_scope']],
+        )
     )
 
     # Accessing the arguments
-    state = module.params['state']
-    list_name = module.params['pn_name']
+    action = module.params['pn_action']
+    name = module.params['pn_name']
     scope = module.params['pn_scope']
-
-    command = get_command_from_state(state)
 
     # Building the CLI command string
     cli = pn_cli(module)
-
-    if command == 'access-list-delete':
-        check_cli(module, cli)
-        if ACC_LIST_EXISTS is False:
-            module.exit_json(
-                skipped=True,
-                msg='access-list with name %s does not exist' % list_name
-            )
-        cli += ' %s name %s ' % (command, list_name)
-    else:
-        if command == 'access-list-create':
-            check_cli(module, cli)
-            if ACC_LIST_EXISTS is True:
-                module.exit_json(
-                     skipped=True,
-                     msg='access list with name %s already exists' % list_name
-                )
-        cli += ' %s name %s ' % (command, list_name)
-        cli += ' scope %s ' % scope
-
+    cli += 'access-list-' + action
+    cli += ' name ' + name
+    
+    if action == 'create':
+        if scope:
+            cli += ' scope ' + scope
+    
     run_cli(module, cli)
-
 
 if __name__ == '__main__':
     main()

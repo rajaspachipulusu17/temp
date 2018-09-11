@@ -1,31 +1,31 @@
 #!/usr/bin/python
 """ PN CLI admin-service-modify """
-
-# Copyright 2018 Pluribus Networks
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# This file is part of Ansible
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+# Ansible is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Ansible is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
+#
 
-
-ANSIBLE_METADATA = {'metadata_version': '1.1',
-                    'status': ['preview'],
-                    'supported_by': 'community'}
-
+import shlex
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.pn_nvos import pn_cli
 
 DOCUMENTATION = """
 ---
 module: pn_admin_service
 author: "Pluribus Networks (devops@pluribusnetworks.com)"
-version_added: "2.7"
+version: 2
 short_description: CLI command to modify admin-service.
 description:
   - C(modify): modify services on the server-switch
@@ -35,11 +35,6 @@ options:
       - Target switch to run the CLI on.
     required: False
     type: str
-  state:
-    description:
-      - State the action to perform. Use 'present' to create admin-service and
-        'absent' to delete admin-service 'update' to modify the admin-service.
-    required: True
   pn_action:
     description:
       - admin-service configuration command.
@@ -106,23 +101,15 @@ options:
 EXAMPLES = """
 - name: admin service functionality
   pn_admin_service:
-    pn_cliswitch: "192.168.1.1"
-    state: "update"
-    pn__if: "mgmt"
+    pn_action: "modify"
     pn_web: False
+    pn__if: "mgmt"
     pn_web_ssl: False
-    pn_icmp: True
-
-- name: admin service functionality
-  pn_admin_service:
-    pn_cliswitch: "192.168.1.1"
-    state: "update"
-    pn_web: False
-    pn__if: "mgmt"
     pn_snmp: True
     pn_net_api: True
+    pn_icmp: True
     pn_ssh: True
-    pn_nfs: True  
+    pn_nfs: True
 """
 
 RETURN = """
@@ -142,11 +129,6 @@ changed:
   type: bool
 """
 
-import shlex
-
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.pn_nvos import pn_cli
-
 
 def run_cli(module, cli):
     """
@@ -155,50 +137,33 @@ def run_cli(module, cli):
     :param cli: the complete cli string to be executed on the target node(s).
     :param module: The Ansible module to fetch command
     """
-    cliswitch = module.params['pn_cliswitch']
-    state = module.params['state']
-    command = get_command_from_state(state)
-
-    cmd = shlex.split(cli)
-    result, out, err = module.run_command(cmd)
-
-    print_cli = cli.split(cliswitch)[0]
+    action = module.params['pn_action']
+    cli = shlex.split(cli)
+    rc, out, err = module.run_command(cli)
 
     # Response in JSON format
     if err:
         module.fail_json(
-            command=print_cli,
+            command=' '.join(cli),
             stderr=err.strip(),
-            msg="admin-service %s operation failed" % cmd,
+            msg="admin-service %s operation failed" % action,
             changed=False
         )
 
     if out:
         module.exit_json(
-            command=print_cli,
+            command=' '.join(cli),
             stdout=out.strip(),
-            msg="admin-service %s operation completed" % cmd,
+            msg="admin-service %s operation completed" % action,
             changed=True
         )
 
     else:
         module.exit_json(
-            command=print_cli,
-            msg="admin-service %s operation completed" % cmd,
+            command=' '.join(cli),
+            msg="admin-service %s operation completed" % action,
             changed=True
         )
-
-
-def get_command_from_state(state):
-    """
-    This method gets appropriate command name for the state specified. It
-    returns the command name for the specified state.
-    :param state: The state for which the respective command name is required.
-    """
-    command = None
-    if state == 'update':
-        command = 'admin-service-modify'
-    return command
 
 
 def main():
@@ -206,8 +171,7 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             pn_cliswitch=dict(required=False, type='str'),
-            state=dict(required=True, type='str',
-                       choices=['update']),
+            pn_action=dict(required=True, type='str', choices=['modify']),
             pn_web=dict(required=False, type='bool'),
             pn_web_ssl=dict(required=False, type='bool'),
             pn_snmp=dict(required=False, type='bool'),
@@ -219,15 +183,12 @@ def main():
             pn__if=dict(required=False, type='str'),
             pn_icmp=dict(required=False, type='bool'),
             pn_net_api=dict(required=False, type='bool'),
-        ),
-        required_if=[['state', 'update', ['pn__if']]],
-        required_one_of=[['pn_web', 'pn_web_ssl', 'pn_snmp', 'pn_web_port',
-                        'pn_web_ssl_port', 'pn_nfs', 'pn_ssh', 'pn_web_log',
-                        'pn_icmp', 'pn_net_api']],
+        )
     )
 
     # Accessing the arguments
-    state = module.params['state']
+    switch = module.params['pn_cliswitch']
+    mod_action = module.params['pn_action']
     web = module.params['pn_web']
     web_ssl = module.params['pn_web_ssl']
     snmp = module.params['pn_snmp']
@@ -240,13 +201,12 @@ def main():
     icmp = module.params['pn_icmp']
     net_api = module.params['pn_net_api']
 
-    command = get_command_from_state(state)
-
     # Building the CLI command string
-    cli = pn_cli(module)
-
-    if command == 'admin-service-modify':
-        cli += ' %s ' % command
+    cli = pn_cli(module, switch)
+    cli += ' admin-service-' + mod_action
+    if mod_action in ['modify']:
+        if _if:
+            cli += ' if %s ' % _if
         if web:
             if web is True:
                 cli += ' web '
@@ -281,8 +241,6 @@ def main():
                 cli += ' web-log '
             else:
                 cli += ' no-web-log '
-        if _if:
-            cli += ' if ' + _if
         if icmp:
             if icmp is True:
                 cli += ' icmp '
@@ -295,7 +253,6 @@ def main():
                 cli += ' no-net-api '
 
     run_cli(module, cli)
-
 
 if __name__ == '__main__':
     main()

@@ -15,17 +15,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-ANSIBLE_METADATA = {'metadata_version': '1.1',
-                    'status': ['preview'],
-                    'supported_by': 'community'}
-
+import shlex
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.pn_nvos import pn_cli
 
 DOCUMENTATION = """
 ---
 module: pn_connection_stats_settings
 author: "Pluribus Networks (devops@pluribusnetworks.com)"
-version_added: "2.7"
+version: 2
 short_description: CLI command to modify connection-stats-settings.
 description:
   - C(modify): modify the settings for collecting statistical data about connections
@@ -35,10 +33,12 @@ options:
       - Target switch to run the CLI on.
     required: False
     type: str
-  state:
+  pn_action:
     description:
-      - State the action to perform. Use 'update' to modify the connection-stats-settings.
-    required: True
+      - connection-stats-settings configuration command.
+    required: true
+    choices: ['modify']
+    type: str
   pn_enable:
     description:
       - enable or disable collecting connections statistics
@@ -122,16 +122,11 @@ options:
 """
 
 EXAMPLES = """
-- name: "Modify connection stats settings"
+- name: Modify connection stats settings
   pn_connection_stats_settings:
-    state: "update"
-    pn_enable: True
-    pn_fabric_connection_max_memory: "1000"
+    pn_action: modify
+    pn_enable: False
 
-    - name: "Modify connection stats settings"
-      pn_connection_stats_settings:
-        state: "update"
-        pn_enable: False
 """
 
 RETURN = """
@@ -151,10 +146,6 @@ changed:
   type: bool
 """
 
-import shlex
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.pn_nvos import pn_cli
-
 
 def run_cli(module, cli):
     """
@@ -163,50 +154,33 @@ def run_cli(module, cli):
     :param cli: the complete cli string to be executed on the target node(s).
     :param module: The Ansible module to fetch command
     """
-    cliswitch = module.params['pn_cliswitch']
-    state = module.params['state']
-    command = get_command_from_state(state)
-
-    cmd = shlex.split(cli)
-    result, out, err = module.run_command(cmd)
-
-    print_cli = cli.split(cliswitch)[0]
+    action = module.params['pn_action']
+    cli = shlex.split(cli)
+    rc, out, err = module.run_command(cli)
 
     # Response in JSON format
     if err:
         module.fail_json(
-            command=print_cli,
+            command=' '.join(cli),
             stderr=err.strip(),
-            msg="connection-stats-settings %s operation failed" % cmd,
+            msg="connection-stats-settings %s operation failed" % action,
             changed=False
         )
 
     if out:
         module.exit_json(
-            command=print_cli,
+            command=' '.join(cli),
             stdout=out.strip(),
-            msg="connection-stats-settings %s operation completed" % cmd,
+            msg="connection-stats-settings %s operation completed" % action,
             changed=True
         )
 
     else:
         module.exit_json(
-            command=print_cli,
-            msg="connection-stats-settings %s operation completed" % cmd,
+            command=' '.join(cli),
+            msg="connection-stats-settings %s operation completed" % action,
             changed=True
         )
-
-
-def get_command_from_state(state):
-    """
-    This method gets appropriate command name for the state specified. It
-    returns the command name for the specified state.
-    :param state: The state for which the respective command name is required.
-    """
-    command = None
-    if state == 'update':
-        command = 'connection-stats-settings-modify'
-    return command
 
 
 def main():
@@ -214,8 +188,7 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             pn_cliswitch=dict(required=False, type='str'),
-            state=dict(required=True, type='str',
-                       choices=['update']),
+            pn_action=dict(required=True, type='str', choices=['modify']),
             pn_enable=dict(required=False, type='bool'),
             pn_connection_backup_enable=dict(required=False, type='bool'),
             pn_client_server_stats_max_memory=dict(required=False, type='str'),
@@ -232,25 +205,11 @@ def main():
             pn_connection_max_memory=dict(required=False, type='str'),
             pn_connection_stats_max_memory=dict(required=False, type='str'),
             pn_client_server_stats_log_interval=dict(required=False, type='str'),
-        ),
-        required_one_of=[['pn_enable', 'pn_connection_backup_enable',
-                          'pn_client_server_stats_max_memory',
-                          'pn_connection_stats_log_disk_space',
-                          'pn_client_server_stats_log_enable',
-                          'pn_service_stat_max_memory',
-                          'pn_connection_stats_log_interval',
-                          'pn_connection_backup_interval',
-                          'pn_connection_stats_log_enable',
-                          'pn_fabric_connection_max_memory',
-                          'pn_fabric_connection_backup_enable',
-                          'pn_client_server_stats_log_disk_space',
-                          'pn_connection_max_memory',
-                          'pn_connection_stats_max_memory',
-                          'pn_client_server_stats_log_interval']]
+        )
     )
 
     # Accessing the arguments
-    state = module.params['state']
+    action = module.params['pn_action']
     enable = module.params['pn_enable']
     connection_backup_enable = module.params['pn_connection_backup_enable']
     client_server_stats_max_memory = module.params['pn_client_server_stats_max_memory']
@@ -268,28 +227,25 @@ def main():
     connection_stats_max_memory = module.params['pn_connection_stats_max_memory']
     client_server_stats_log_interval = module.params['pn_client_server_stats_log_interval']
 
-    command = get_command_from_state(state)
-
     # Building the CLI command string
     cli = pn_cli(module)
-
-    if command == 'connection-stats-settings-modify':
-        cli += ' %s ' % command
+    cli += 'connection-stats-settings-' + action
+    if action in ['modify']:
         if enable is True:
             cli += ' enable '
-        else:
+        if enable is False:
             cli += ' disable '
-        if connection_backup_enable:
+        if connection_backup_enable is True:
             cli += ' connection-backup-enable '
-        else:
+        if connection_backup_enable is False:
             cli += ' connection-backup-disable '
         if client_server_stats_max_memory:
             cli += ' client-server-stats-max-memory ' + client_server_stats_max_memory
         if connection_stats_log_disk_space:
             cli += ' connection-stats-log-disk-space ' + connection_stats_log_disk_space
-        if client_server_stats_log_enable:
+        if client_server_stats_log_enable is True:
             cli += ' client-server-stats-log-enable '
-        else:
+        if client_server_stats_log_enable is False:
             cli += ' client-server-stats-log-disable '
         if service_stat_max_memory:
             cli += ' service-stat-max-memory ' + service_stat_max_memory
@@ -299,15 +255,15 @@ def main():
             cli += ' fabric-connection-backup-interval ' + fabric_connection_backup_interval
         if connection_backup_interval:
             cli += ' connection-backup-interval ' + connection_backup_interval
-        if connection_stats_log_enable:
+        if connection_stats_log_enable is True:
             cli += ' connection-stats-log-enable '
-        else:
+        if connection_stats_log_enable is False:
             cli += ' connection-stats-log-disable '
         if fabric_connection_max_memory:
             cli += ' fabric-connection-max-memory ' + fabric_connection_max_memory
-        if fabric_connection_backup_enable:
+        if fabric_connection_backup_enable is True:
             cli += ' fabric-connection-backup-enable '
-        else:
+        if fabric_connection_backup_enable is False:
             cli += ' fabric-connection-backup-disable '
         if client_server_stats_log_disk_space:
             cli += ' client-server-stats-log-disk-space ' + client_server_stats_log_disk_space
@@ -320,6 +276,6 @@ def main():
 
     run_cli(module, cli)
 
-
 if __name__ == '__main__':
     main()
+

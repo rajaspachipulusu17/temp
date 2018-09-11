@@ -1,33 +1,30 @@
 #!/usr/bin/python
 """ PN CLI user-create/modify/delete """
-#
-# This file is part of Ansible
-#
-# Ansible is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# Ansible is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
-#
 
+# Copyright 2018 Pluribus Networks
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-ANSIBLE_METADATA = {'metadata_version': '1.1',
-                    'status': ['preview'],
-                    'supported_by': 'community'}
-
+import os
+import shlex
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.pn_nvos import pn_cli
 
 DOCUMENTATION = """
 ---
 module: pn_user
 author: "Pluribus Networks (devops@pluribusnetworks.com)"
-version_added: "2.7"
+version: 2
 short_description: CLI command to create/modify/delete user.
 description:
   - C(create): create a user and apply a role
@@ -38,48 +35,49 @@ options:
     description:
       - Target switch to run the CLI on.
     required: False
-  state:
+    type: str
+  pn_action:
     description:
-      - State the action to perform. Use 'present' to create user and
-        'absent' to delete user 'update' to update user.
-    required: True
+      - user configuration command.
+    required: true
+    choices: ['create', 'modify', 'delete']
+    type: str
   pn_scope:
     description:
       - local or fabric
+    required: false
     choices: ['local', 'fabric']
   pn_initial_role:
     description:
       - initial role for user
+    required: false
     type: str
+    choices: ['network-admin', 'read-only-network-admin']
   pn_password:
     description:
       - plain text password
+    required: false
     type: str
   pn_name:
     description:
       - username
+    required: false
     type: str
 """
 
 EXAMPLES = """
-- name: "Configure user"
+- name: Create a user
   pn_user:
-    state: "present"
-    pn_scope: "fabric"
-    pn_initial_role: "network-admin"
-    pn_password: "test123"
-    pn_name: "enss"
-
-- name: "Configure user"
+    pn_action: 'create'
+    pn_name: 'system-admin'
+    pn_scope: 'fabric'
+    pn_initial_role: 'network-admin'
+    pn_password: "{{ secret_password }}"
+    
+- name: Delete a user
   pn_user:
-    state: "absent"
-    pn_name: "enss"
-
-- name: "Configure user"
-  pn_user:
-    state: "update"
-    pn_password: "test1234"
-    pn_name: "enss"
+    pn_action: 'delete'
+    pn_name: 'system-admin'
 """
 
 RETURN = """
@@ -100,93 +98,67 @@ changed:
 """
 
 
-import shlex
-
-# AnsibleModule boilerplate
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.pn_nvos import pn_cli
-
-
-def run_cli(module, cli):
+def run_cli(module, cli, pass_args=None):
     """
     This method executes the cli command on the target node(s) and returns the
     output. The module then exits based on the output.
     :param cli: the complete cli string to be executed on the target node(s).
     :param module: The Ansible module to fetch command
     """
-    cliswitch = module.params['pn_cliswitch']
-    state = module.params['state']
-    command = get_command_from_state(state)
-
-    cmd = shlex.split(cli)
-    result, out, err = module.run_command(cmd)
-
-    print_cli = cli.split(cliswitch)[1]
+    action = module.params['pn_action']
+    if pass_args:
+        fd_r, fd_w = os.pipe()
+        newpid = os.fork()
+        if newpid == 0:
+           os.close(fd_w)
+           cli = cli.replace('--quiet -e --no-login-prompt', '--quiet  --pass-fd %s ' % (fd_r))
+           cli = shlex.split(cli)
+           rc, out, err = module.run_command(cli, close_fds=False)
+           os.close(fd_r)
+        else:
+           os.close(fd_r)
+           os.write(fd_w, pass_args)
+           os.close(fd_w)
+    else:
+        cli = shlex.split(cli)
+        rc, out, err = module.run_command(cli)
 
     # Response in JSON format
-    if result != 0:
-        module.exit_json(
-            command=print_cli,
+    if err:
+        module.fail_json(
+            command=' '.join(cli),
             stderr=err.strip(),
-            msg="user %s operation failed" % cmd,
+            msg="user %s operation failed" % action,
             changed=False
         )
 
     if out:
         module.exit_json(
-            command=print_cli,
+            command=' '.join(cli),
             stdout=out.strip(),
-            msg="user %s operation completed" % cmd,
+            msg="user %s operation completed" % action,
             changed=True
         )
 
     else:
         module.exit_json(
-            command=print_cli,
-            msg="user %s operation completed" % cmd,
+            command=' '.join(cli),
+            msg="user %s operation completed" % action,
             changed=True
         )
 
 
-def check_cli(module, cli):
+def check_user(module):
     """
-    This method checks for idempotency using the user-show command.
-    If a user already exists on the given switch, return USER_EXISTS as
-    True else False.
-    :param module: The Ansible module to fetch input parameters
-    :param cli: The CLI string
-    :return Global Booleans: USER_EXISTS.
+
+    :param module:
+    :return:
     """
     name = module.params['pn_name']
-    # Global flags
-    global USER_EXISTS
-
-    show = cli + \
-        ' user-show format name no-show-headers'
-    show = shlex.split(show)
-    out = module.run_command(show)[1]
-
-    out = out.split()
-    # Global flags
-    global USER_EXISTS
-
-    USER_EXISTS = True if name in out else False
-
-
-def get_command_from_state(state):
-    """
-    This method gets appropriate command name for the state specified. It
-    returns the command name for the specified state.
-    :param state: The state for which the respective command name is required.
-    """
-    command = None
-    if state == 'present':
-        command = 'user-create'
-    if state == 'absent':
-        command = 'user-delete'
-    if state == 'update':
-        command = 'user-modify'
-    return command
+    show_cli = pn_cli(module)
+    show_cli += ' user-show name %s' % name
+    show_cli = shlex.split(show_cli)
+    return module.run_command(show_cli)[1]
 
 
 def main():
@@ -194,59 +166,48 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             pn_cliswitch=dict(required=False, type='str'),
-            state=dict(required=True, type='str',
-                       choices=['present', 'absent', 'update']),
+            pn_action=dict(required=True, type='str',
+                           choices=['create', 'modify', 'delete']),
             pn_scope=dict(required=False, type='str',
                           choices=['local', 'fabric']),
-            pn_initial_role=dict(required=False, type='str'),
+            pn_initial_role=dict(required=False, type='str', default='network-admin',
+                                 choices=['network-admin', 'read-only-network-admin']),
             pn_password=dict(required=False, type='str', no_log=True),
             pn_name=dict(required=False, type='str'),
-        ),
-        required_if=(
-            ["state", "present", ["pn_name"]],
-            ["state", "absent", ["pn_name"]],
-            ["state", "update", ["pn_name", "pn_password"]]
-            )
         )
+    )
 
     # Accessing the arguments
-    state = module.params['state']
+    mod_action = module.params['pn_action']
     scope = module.params['pn_scope']
     initial_role = module.params['pn_initial_role']
     password = module.params['pn_password']
     name = module.params['pn_name']
 
-    command = get_command_from_state(state)
-
     # Building the CLI command string
     cli = pn_cli(module)
+    cli += 'user-' + mod_action
 
-    if command == 'user-delete':
-        check_cli(module, cli)
-        if USER_EXISTS is False:
+    pass_args = ""
+    if mod_action in ['create']:
+        if check_user(module):
             module.exit_json(
-                skipped=True,
-                msg='user with name %s does not exist' % name
+                msg='user %s already exists on the switch' % name
             )
-        cli += ' %s name %s ' % (command, name)
-    else:
-        if command == 'user-create':
-            check_cli(module, cli)
-            if USER_EXISTS is True:
-                module.exit_json(
-                     skipped=True,
-                     msg='User with name %s already exists' % name
-                )
-        cli += ' %s name %s ' % (command, name)
-
         if scope:
             cli += ' scope ' + scope
         if initial_role:
             cli += ' initial-role ' + initial_role
-        if password:
-            cli += ' password ' + password
-    run_cli(module, cli)
 
+    if mod_action in ['create', 'delete', 'modify']:
+        if name:
+            cli += ' name ' + name
+
+    if mod_action in ['create', 'modify']:
+        if password:
+            pass_args += ' password %s ' % (password)
+
+    run_cli(module, cli, pass_args)
 
 if __name__ == '__main__':
     main()

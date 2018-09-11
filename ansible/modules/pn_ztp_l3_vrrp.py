@@ -130,6 +130,7 @@ def create_vlan(module, vlan_id, switch):
     :param switch: Name of the switch on which vlan creation will be executed.
     :return: String describing if vlan got created or if it already exists.
     """
+    output = ''
     global CHANGED_FLAG
     cli = pn_cli(module)
     clicopy = cli
@@ -142,10 +143,9 @@ def create_vlan(module, vlan_id, switch):
         cli += ' vlan-create id %s scope fabric ' % vlan_id
         run_cli(module, cli)
         CHANGED_FLAG.append(True)
-        return ' %s: Created vlan id %s with scope fabric \n' % (switch,
-                                                                 vlan_id)
-    else:
-        return ''
+        output += ' %s: Created vlan id %s' % (switch, vlan_id)
+        output += ' with scope fabric \n'
+    return output
 
 
 def create_vrouter_interface(module, switch, vlan_id, vrrp_id,
@@ -180,17 +180,17 @@ def create_vrouter_interface(module, switch, vlan_id, vrrp_id,
         cli += ' vrouter-interface-add vrouter-name ' + vrouter_name
         cli += ' ip ' + list_ips[0]
         cli += ' vlan %s if data ' % vlan_id
-        if module.params['pn_addr_type'] == 'ipv4_ipv6':
+        if addr_type == 'ipv4_ipv6':
             cli += ' ip2 ' + list_ips[1]
-        if module.params['pn_jumbo_frames'] == True:
+        if module.params['pn_jumbo_frames'] is True:
             cli += ' mtu 9216'
-        if module.params['pn_pim_ssm'] == True:
+        if module.params['pn_pim_ssm'] is True:
             cli += ' pim-cluster '
         run_cli(module, cli)
         output = ' %s: Added vrouter interface with ip %s' % (
             switch, list_ips[0]
         )
-        if module.params['pn_addr_type'] == 'ipv4_ipv6':
+        if addr_type == 'ipv4_ipv6':
             output += ' ip2 %s' % list_ips[1]
         output += ' to %s \n' % vrouter_name
         CHANGED_FLAG.append(True)
@@ -222,16 +222,15 @@ def create_vrouter_interface(module, switch, vlan_id, vrrp_id,
             cli += ' vlan %s if data vrrp-id %s ' % (vlan_id, vrrp_id)
             cli += ' vrrp-primary %s vrrp-priority %s ' % (eth_port[0],
                                                            vrrp_priority)
-            if module.params['pn_jumbo_frames'] == True:
+            if module.params['pn_jumbo_frames'] is True:
                 cli += ' mtu 9216'
-            if module.params['pn_pim_ssm'] == True:
+            if module.params['pn_pim_ssm'] is True:
                 cli += ' pim-cluster '
             run_cli(module, cli)
             CHANGED_FLAG.append(True)
             output += ' %s: Added vrouter interface with ip %s to %s \n' % (
                 switch, ip_vip, vrouter_name
             )
-
 
     if addr_type == 'ipv4' or addr_type == 'ipv4_ipv6':
         ipv4 = list_ips[0]
@@ -302,7 +301,7 @@ def create_cluster(module, switch, name, node1, node2):
     cli = pn_cli(module)
     clicopy = cli
     cli += ' switch %s cluster-show format name no-show-headers ' % node1
-    cluster_list = run_cli(module, cli).split()
+    cluster_list = list(set(run_cli(module, cli).split()))
     if name not in cluster_list:
         cli = clicopy
         cli += ' switch %s cluster-create name %s ' % (switch, name)
@@ -340,15 +339,16 @@ def configure_vrrp_for_non_cluster_leafs(module, ip, ip_v6, non_cluster_leaf, vl
         cli += 'switch ' + non_cluster_leaf
         cli += ' vrouter-interface-add vrouter-name ' + vrouter_name
         cli += ' vlan ' + vlan_id
-        if addr_type == 'ipv4' or  addr_type == 'ipv4_ipv6':
+
+        if addr_type == 'ipv4' or addr_type == 'ipv4_ipv6':
             cli += ' ip ' + ip
-        if module.params['pn_addr_type'] == 'ipv4_ipv6':
+        if addr_type == 'ipv4_ipv6':
             cli += ' ip2 ' + ip_v6
         if addr_type == 'ipv6':
             cli += ' ip ' + ip_v6
-        if module.params['pn_jumbo_frames'] == True:
+        if module.params['pn_jumbo_frames'] is True:
             cli += ' mtu 9216'
-        if module.params['pn_pim_ssm'] == True:
+        if module.params['pn_pim_ssm'] is True:
             cli += ' pim-cluster '
         run_cli(module, cli)
         CHANGED_FLAG.append(True)
@@ -447,22 +447,26 @@ def configure_vrrp(module, csv_data):
     output = ''
     vrrp_ipv6 = ''
     vrrp_ip = ''
+    addr_type = module.params['pn_addr_type']
 
     csv_data = csv_data.strip()
     csv_data_list = csv_data.split('\n')
     # Parse csv file data and configure VRRP.
     for row in csv_data_list:
-        row = row.strip()
-        if row.startswith('#'):
+        if not row or row.startswith('#'):
             continue
         else:
+            row = row.strip()
             elements = row.split(',')
             elements = filter(None, elements)
+            if any(field.strip() for field in row):
+                vlan_id = elements.pop(0).strip()
+            else:
+                continue
             switch_list = []
-            vlan_id = elements.pop(0).strip()
-            if module.params['pn_addr_type'] == 'ipv4_ipv6' or module.params['pn_addr_type'] == 'ipv4':
+            if addr_type == 'ipv4_ipv6' or addr_type == 'ipv4':
                 vrrp_ip = elements.pop(0).strip()
-            if module.params['pn_addr_type'] == 'ipv4_ipv6' or module.params['pn_addr_type'] == 'ipv6':
+            if addr_type == 'ipv4_ipv6' or addr_type == 'ipv6':
                 vrrp_ipv6 = elements.pop(0).strip()
             leaf_switch_1 = elements.pop(0).strip()
             if module.params['pn_current_switch'] == leaf_switch_1:
@@ -472,16 +476,17 @@ def configure_vrrp(module, csv_data):
                     active_switch = elements.pop(0).strip()
                     switch_list.append(leaf_switch_1)
                     switch_list.append(leaf_switch_2)
-                    output += configure_vrrp_for_clustered_switches(module, vrrp_id,
-                                                                    vrrp_ip, vrrp_ipv6,
-                                                                    active_switch,
-                                                                    vlan_id,
-                                                                    switch_list)
-
+                    output += configure_vrrp_for_clustered_switches(
+                        module,
+                        vrrp_id,
+                        vrrp_ip,
+                        vrrp_ipv6,
+                        active_switch,
+                        vlan_id,
+                        switch_list)
                 else:
                     output += configure_vrrp_for_non_clustered_switches(
                         module, vlan_id, vrrp_ip, vrrp_ipv6, leaf_switch_1)
-
     return output
 
 
@@ -534,6 +539,7 @@ def main():
         failed=False,
         changed=True if True in CHANGED_FLAG else False
     )
+
 
 if __name__ == '__main__':
     main()

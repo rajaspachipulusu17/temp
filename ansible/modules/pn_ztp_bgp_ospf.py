@@ -1,5 +1,5 @@
 #!/usr/bin/python
-""" PN CLI EBGP/OSPF """
+""" PN CLI BGP/OSPF """
 
 #
 # This file is part of Ansible
@@ -21,10 +21,11 @@
 import shlex
 
 from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.pn_nvos import *
 
 DOCUMENTATION = """
 ---
-module: pn_ebgp_ospf
+module: pn_ztp_bgp_ospf
 author: 'Pluribus Networks (devops@pluribusnetworks.com)'
 short_description: Module to configure eBGP/OSPF.
 description: It performs following steps:
@@ -42,16 +43,6 @@ description: It performs following steps:
       - Assign ospf_neighbor
       - Assign ospf_redistribute
 options:
-    pn_cliusername:
-      description:
-        - Provide login username if user is not root.
-      required: False
-      type: str
-    pn_clipassword:
-      description:
-        - Provide login password if user is not root.
-      required: False
-      type: str
     pn_spine_list:
       description:
         - Specify list of Spine hosts
@@ -105,19 +96,35 @@ options:
       required: False
       type: bool
       default: False
-    pn_ospf_area_id:
+    pn_ospf_v4_area_id:
       description:
-        - Specify area_id value to be added to vrouter for ospf.
+        - Specify area_id value to be added to vrouter for ospf v4.
       required: False
       type: str
       default: '0'
+    pn_ospf_v6_area_id:
+      description:
+        - Specify area_id value to be added to vrouter for ospf v6.
+      required: False
+      type: str
+      default: '0.0.0.0'
+    pn_area_configure_flag:
+      description:
+        - Specify the type of area
+      required: False
+      choices=['singlearea', 'dualarea', 'multiarea']
+      default: 'singlearea'
+    pn_jumbo_frames:
+      description:
+        - Flag to assign mtu
+      required: False
+      default: False
+      type: bool
 """
 
 EXAMPLES = """
 - name: Configure eBGP/OSPF
-  pn_ebgp_ospf:
-    pn_cliusername: "{{ USERNAME }}"
-    pn_clipassword: "{{ PASSWORD }}"
+  pn_ztp_bgp_ospf:
     pn_spine_list: "{{ groups['spine'] }}"
     pn_leaf_list: "{{ groups['leaf'] }}"
 """
@@ -154,23 +161,6 @@ msg:
 """
 
 CHANGED_FLAG = []
-
-
-def pn_cli(module):
-    """
-    Method to generate the cli portion to launch the Netvisor cli.
-    :param module: The Ansible module to fetch username and password.
-    :return: The cli string for further processing.
-    """
-    username = module.params['pn_cliusername']
-    password = module.params['pn_clipassword']
-
-    if username and password:
-        cli = '/usr/bin/cli --quiet --user %s:%s ' % (username, password)
-    else:
-        cli = '/usr/bin/cli --quiet '
-
-    return cli
 
 
 def run_cli(module, cli):
@@ -486,45 +476,6 @@ def add_bgp_neighbor(module, dict_bgp_as):
     return output
 
 
-def assign_router_id(module, vrouter_names):
-    """
-    Method to assign router-id to vrouters which is same as loopback ip.
-    :param module: The Ansible module to fetch input parameters.
-    :param vrouter_names: List of vrouter names.
-    :return: String describing if router id got assigned or not.
-    """
-    global CHANGED_FLAG
-    output = ''
-    cli = pn_cli(module)
-    clicopy = cli
-
-    if len(vrouter_names) > 0:
-        for vrouter in vrouter_names:
-            cli = clicopy
-            cli += ' vrouter-loopback-interface-show vrouter-name ' + vrouter
-            cli += ' format ip no-show-headers '
-            loopback_ip = run_cli(module, cli).split()
-
-            if 'Success' not in loopback_ip and len(loopback_ip) > 0:
-                loopback_ip.remove(vrouter)
-                cli = clicopy
-                cli += ' vrouter-modify name %s router-id %s ' % (
-                    vrouter, loopback_ip[0])
-
-                if 'Success' in run_cli(module, cli):
-                    cli = clicopy
-                    cli += ' vrouter-show name ' + vrouter
-                    cli += ' format location no-show-headers '
-                    switch = run_cli(module, cli).split()[0]
-
-                    output += ' %s: Added router id %s to %s \n' % (
-                        switch, loopback_ip[0], vrouter)
-
-                    CHANGED_FLAG.append(True)
-
-    return output
-
-
 def configure_bgp(module, vrouter_names, dict_bgp_as, bgp_max, bgp_redis):
     """
     Method to add bgp_as, bgp_max_path and bgp_redistribute to the vrouters.
@@ -703,82 +654,68 @@ def configure_ospf_bfd(module, vrouter, ip):
         return ''
 
 
-def add_ospf_loopback_spine(module, switch, vrouter, ospf_network,
-                            ospf_area_id):
+def add_ospf_loopback(module, current_switch):
     """
-    Method to add ospf_neighbor for loopback network for spines.
+    Method to add loopback network to OSPF
     :param module: The Ansible module to fetch input parameters.
-    :param switch: The name of the ansible switch to add neighbor.
-    :param vrouter: The vrouter name to add ospf bfd.
-    :param ospf_network: The network for adding the ospf neighbor.
-    :param ospf_area_id: The area_id for the spines loopback neighbor.
-    :return: String describing if OSPF Neighbor got added or not.
+    :param current_switch: Switch to add network statements.
+    :return: String describing if loopback network got added to OSPF or not.
     """
     global CHANGED_FLAG
     output = ''
     cli = pn_cli(module)
+    cli += ' switch %s ' % current_switch
     clicopy = cli
+    vr_name = current_switch + '-vrouter'
 
-    cli += ' vrouter-ospf-show'
-    cli += ' network %s format switch no-show-headers ' % ospf_network
-    already_added = run_cli(module, cli).split()
+    cli += ' vrouter-loopback-interface-show vrouter-name %s' % vr_name
+    cli += ' format ip,router-if parsable-delim ,'
+    loopback_ip = run_cli(module, cli).strip().split('\n')
+    for addr in loopback_ip:
+        ip1 = addr.split(',')
+        ip = ip1[1]
+        if len(ip.split('.')) == 1:
+            nic = ip1[2]
+            cli = clicopy
+            cli += ' vrouter-ospf6-show vrouter-name %s' % vr_name
+            cli += ' nic %s no-show-headers ' % nic
+            already_added = run_cli(module, cli)
+            if 'Success' in already_added:
+                cli = clicopy
+                cli += ' vrouter-ospf6-add vrouter-name %s' % vr_name
+                cli += ' nic %s' % nic
+                cli += ' ospf6-area %s' % module.params['pn_ospf_v6_area_id']
+                output += run_cli(module, cli)
 
-    if vrouter in already_added:
-        pass
-    else:
-        cli = clicopy
-        cli += ' vrouter-ospf-add vrouter-name ' + vrouter
-        cli += ' network %s ospf-area %s' % (ospf_network,
-                                             ospf_area_id)
-
-        if 'Success' in run_cli(module, cli):
-            output += ' %s: Added OSPF neighbor %s to %s \n' % (switch,
-                                                                ospf_network,
-                                                                vrouter)
-            CHANGED_FLAG.append(True)
+            # Add loopback interface 'lo' to ospf6
+            cli = clicopy
+            nic = "lo"
+            cli += ' vrouter-ospf6-show vrouter-name %s' % vr_name
+            cli += ' nic %s no-show-headers ' % nic
+            already_added = run_cli(module, cli)
+            if 'Success' in already_added:
+                cli = clicopy
+                cli += ' vrouter-ospf6-add vrouter-name %s' % vr_name
+                cli += ' nic %s' % nic
+                cli += ' ospf6-area %s' % module.params['pn_ospf_v6_area_id']
+                output += run_cli(module, cli)
+        else:
+            l_ip = ip1[1]
+            cli = clicopy
+            cli += ' vrouter-ospf-show vrouter-name %s' % vr_name
+            cli += ' network %s no-show-headers ' % l_ip
+            already_added = run_cli(module, cli).split()
+            if 'Success' in already_added:
+                cli = clicopy
+                cli += ' vrouter-ospf-add vrouter-name %s' % vr_name
+                cli += ' network %s/32' % l_ip
+                cli += ' ospf-area %s' % module.params['pn_ospf_v4_area_id']
+                output += run_cli(module, cli)
 
     return output
 
 
-def find_area_id_leaf_switches(module):
-    """
-    Method to find area_id for all leaf switches and store it in a dictionary.
-    :param module: The Ansible module to fetch input parameters.
-    :return: Dictionary containing area_id of all leaf switches.
-    """
-    leaf_list = module.params['pn_leaf_list']
-    ospf_area_id = int(module.params['pn_ospf_area_id'])
-    cluster_leaf_list = []
-    cli = pn_cli(module)
-    clicopy = cli
-    dict_area_id = {}
-
-    cli += ' cluster-show format name no-show-headers'
-    cluster_list = run_cli(module, cli).split()
-
-    if 'Success' not in cluster_list:
-        for cluster in cluster_list:
-            cli = clicopy
-            cli += ' cluster-show name %s' % cluster
-            cli += ' format cluster-node-1,cluster-node-2 no-show-headers'
-            cluster_nodes = run_cli(module, cli).split()
-
-            if cluster_nodes[0] in leaf_list and cluster_nodes[1] in leaf_list:
-                ospf_area_id += 1
-                dict_area_id[cluster_nodes[0]] = str(ospf_area_id)
-                dict_area_id[cluster_nodes[1]] = str(ospf_area_id)
-                cluster_leaf_list.append(cluster_nodes[0])
-                cluster_leaf_list.append(cluster_nodes[1])
-
-    non_clustered_leaf_list = list(set(leaf_list) - set(cluster_leaf_list))
-    for leaf in non_clustered_leaf_list:
-        ospf_area_id += 1
-        dict_area_id[leaf] = str(ospf_area_id)
-
-    return dict_area_id
-
-
-def add_ospf_neighbor(module, dict_area_id):
+def add_ospf_neighbor(module, current_switch):
     """
     Method to add ospf_neighbor to the vrouters.
     :param module: The Ansible module to fetch input parameters.
@@ -787,120 +724,124 @@ def add_ospf_neighbor(module, dict_area_id):
     """
     global CHANGED_FLAG
     output = ''
-    loopback_network = ''
+    addr_type = module.params['pn_addr_type']
     cli = pn_cli(module)
+    cli += ' switch %s ' % current_switch
     clicopy = cli
-    spine_list = module.params['pn_spine_list']
 
-    for spine in spine_list:
+    vrouter = current_switch + '-vrouter'
+
+    cli = clicopy
+    cli += ' vrouter-interface-show vrouter-name %s ' % vrouter
+    cli += ' format l3-port no-show-headers '
+    port_list = run_cli(module, cli).split()
+    port_list = list(set(port_list))
+    port_list.remove(vrouter)
+
+    if module.params['pn_area_configure_flag'] == 'singlearea':
+        ospf_area_id = module.params['pn_ospf_v4_area_id']
+    else:
+        ospf_area_id = str(int(module.params['pn_ospf_v4_area_id']) + 1)
+
+    for port in port_list:
         cli = clicopy
-        cli += ' vrouter-show location %s' % spine
-        cli += ' format name no-show-headers'
-        vrouter_spine = run_cli(module, cli).split()[0]
+        cli += ' vrouter-interface-show vrouter-name %s l3-port %s' % (
+            vrouter, port
+        )
+        cli += ' format ip no-show-headers'
+        ip = run_cli(module, cli).split()
+        ip = list(set(ip))
+        ip.remove(vrouter)
+        ip = ip[0]
+        ip_switch = ip
 
-        if spine_list.index(spine) == 0:
-            cli = clicopy
-            cli += ' vrouter-loopback-interface-show '
-            cli += ' vrouter-name %s format ip ' % vrouter_spine
-            cli += ' no-show-headers '
-            loopback_ip = run_cli(module, cli).split()
-            loopback_ip.remove(vrouter_spine)
-            loopback_ip = loopback_ip[0].split('.')
-            loopback_network = loopback_ip[0] + '.' + loopback_ip[1] + '.'
-            loopback_network += loopback_ip[2] + '.' + '0/24'
-
-        output += add_ospf_loopback_spine(module, spine, vrouter_spine,
-                                          loopback_network, '0')
-
-        cli = clicopy
-        cli += ' vrouter-interface-show vrouter-name %s ' % vrouter_spine
-        cli += ' format l3-port no-show-headers '
-        port_list = run_cli(module, cli).split()
-        port_list = list(set(port_list))
-        port_list.remove(vrouter_spine)
-
-        for port in port_list:
-            cli = clicopy
-            cli += ' switch %s port-show port %s' % (spine, port)
-            cli += ' format hostname no-show-headers'
-            hostname = run_cli(module, cli).split()[0]
-
-            ospf_area_id = dict_area_id[hostname]
-
-            cli = clicopy
-            cli += ' vrouter-show location %s' % hostname
-            cli += ' format name no-show-headers'
-            vrouter_hostname = run_cli(module, cli).split()[0]
-
-            cli = clicopy
-            cli += ' vrouter-interface-show vrouter-name %s l3-port %s' % (
-                vrouter_spine, port
-            )
-            cli += ' format ip no-show-headers'
-            ip = run_cli(module, cli).split()
-            ip = list(set(ip))
-            ip.remove(vrouter_spine)
-            ip = ip[0]
-
+        if addr_type == 'ipv4' or addr_type == 'ipv4_ipv6':
             ip = ip.split('.')
             static_part = str(ip[0]) + '.' + str(ip[1]) + '.'
             static_part += str(ip[2]) + '.'
             last_octet = str(ip[3]).split('/')
             netmask = last_octet[1]
 
-            last_octet_ip_mod = int(last_octet[0]) % 4
+            last_octet_ip_mod = int(last_octet[0]) % (1 << (32 - int(netmask)))
             ospf_last_octet = int(last_octet[0]) - last_octet_ip_mod
             ospf_network = static_part + str(ospf_last_octet) + '/' + netmask
+#            elif addr_type == 'ipv6':
+#                ip = ip.split('/')
+#                ip_spine = ip[0]
+#                netmask = ip[1]
+#                ip = ip[0]
+#
+#                ip = ip.split(':')
+#                if not ip[-1]:
+#                    ip[-1] = '0'
+#                #leaf_last_octet = hex(int(ip[-1], 16) + 1)[2:]
+#                last_octet_ipv6 = int(ip[-1], 16)
+#                last_octet_ipv6_mod = last_octet_ipv6 % (1 << (128 - int(netmask)))
+#                ospf_last_octet = hex(last_octet_ipv6 - last_octet_ipv6_mod)[2:]
+#                leaf_last_octet = hex(last_octet_ipv6 + 1)[2:]
+#                ip[-1] = str(leaf_last_octet)
+#                ip_leaf = ':'.join(ip)
+#                ip[-1] = str(ospf_last_octet)
+#                ospf_network = ':'.join(ip) + '/' + netmask
 
-            leaf_last_octet = int(last_octet[0]) - 1
-            ip_leaf = static_part + str(leaf_last_octet)
-            ip_spine = static_part + last_octet[0]
+        if addr_type == 'ipv4_ipv6':
+            cli = clicopy
+            cli += ' vrouter-interface-show vrouter-name %s l3-port %s' % (
+                vrouter, port)
+            cli += ' format ip2 no-show-headers'
+            ip2 = run_cli(module, cli).split()
+            ip2 = list(set(ip2))
+            ip2.remove(vrouter)
+            ip_switch_ipv6 = ip2[0]
 
             cli = clicopy
-            cli += ' vrouter-ospf-show'
-            cli += ' network %s format switch no-show-headers ' % ospf_network
-            already_added = run_cli(module, cli).split()
+            cli += 'vrouter-interface-show vrouter-name %s' % vrouter
+            cli += ' ip2 %s format nic no-show-headers ' % ip_switch_ipv6
+            nic = run_cli(module, cli).split()
+            nic = list(set(nic))
+            nic.remove(vrouter)
+            nic = nic[0]
 
-            if vrouter_spine in already_added:
-                pass
-            else:
-                if module.params['pn_bfd']:
-                    output += configure_ospf_bfd(module, vrouter_spine,
-                                                 ip_spine)
+            cli = clicopy
+            cli += 'vrouter-ospf6-show nic %s format switch no-show-headers ' % nic
+            ipv6_vrouter = run_cli(module, cli).split()
 
+            if vrouter not in ipv6_vrouter:
                 cli = clicopy
-                cli += ' vrouter-ospf-add vrouter-name ' + vrouter_spine
-                cli += ' network %s ospf-area %s' % (ospf_network,
-                                                     ospf_area_id)
+                cli += 'vrouter-ospf6-add vrouter-name %s nic %s ospf6-area %s ' % (
+                    vrouter, nic, module.params['pn_ospf_v6_area_id'])
+                run_cli(module, cli)
+                output += ' %s: Added OSPF6 nic %s to %s \n' % (
+                    current_switch, nic, vrouter
+                )
 
-                if 'Success' in run_cli(module, cli):
-                    output += ' %s: Added OSPF neighbor %s to %s \n' % (
-                        spine, ospf_network, vrouter_spine
-                    )
-                    CHANGED_FLAG.append(True)
+        cli = clicopy
+        cli += ' vrouter-ospf-show'
+        cli += ' network %s format switch no-show-headers ' % ospf_network
+        already_added = run_cli(module, cli).split()
 
-            if vrouter_hostname in already_added:
-                pass
-            else:
-                if module.params['pn_bfd']:
-                    output += configure_ospf_bfd(module, vrouter_hostname,
-                                                 ip_leaf)
+        if vrouter in already_added:
+            pass
+        else:
+            if module.params['pn_bfd']:
+                output += configure_ospf_bfd(module, vrouter,
+                                             ip_switch)
 
-                cli = clicopy
-                cli += ' vrouter-ospf-add vrouter-name ' + vrouter_hostname
-                cli += ' network %s ospf-area %s' % (ospf_network,
-                                                     ospf_area_id)
+            cli = clicopy
+            cli += ' vrouter-ospf-add vrouter-name ' + vrouter
+            cli += ' network %s ospf-area %s' % (ospf_network,
+                                                 ospf_area_id)
 
-                if 'Success' in run_cli(module, cli):
-                    output += ' %s: Added OSPF neighbor %s to %s \n' % (
-                        hostname, ospf_network, vrouter_hostname
-                    )
-                    CHANGED_FLAG.append(True)
+            if 'Success' in run_cli(module, cli):
+                output += ' %s: Added OSPF neighbor %s to %s \n' % (
+                    current_switch, ospf_network, vrouter
+                )
+                CHANGED_FLAG.append(True)
 
     return output
 
 
-def add_ospf_redistribute(module, vrouter_names):
+def add_ospf_redistribute(module, current_switch):
     """
     Method to add ospf_redistribute to the vrouters.
     :param module: The Ansible module to fetch input parameters.
@@ -909,36 +850,132 @@ def add_ospf_redistribute(module, vrouter_names):
     """
     global CHANGED_FLAG
     output = ''
+    pn_ospf_redistribute = module.params['pn_ospf_redistribute']
     cli = pn_cli(module)
     clicopy = cli
+    vrouter = current_switch + '-vrouter'
 
-    for vrouter in vrouter_names:
-        cli = clicopy
-        cli += ' vrouter-modify name %s' % vrouter
-        cli += ' ospf-redistribute static,connected'
-        if 'Success' in run_cli(module, cli):
-            cli = clicopy
-            cli += ' vrouter-show name ' + vrouter
-            cli += ' format location no-show-headers '
-            switch = run_cli(module, cli).split()[0]
-
-            output += ' %s: Added ospf_redistribute to %s \n' % (switch,
-                                                                 vrouter)
-            CHANGED_FLAG.append(True)
+    cli = clicopy
+    cli += ' vrouter-modify name %s' % vrouter
+    cli += ' ospf-redistribute %s' % pn_ospf_redistribute
+    if 'Success' in run_cli(module, cli):
+        output += ' %s: Added ospf_redistribute to %s \n' % (current_switch,
+                                                             vrouter)
+        CHANGED_FLAG.append(True)
 
     return output
 
-
-def vrouter_leafcluster_ospf_add(module, switch_name, interface_ip,
-                                 ospf_network, ospf_area_id):
+def vrouter_iospf_interface_add(module, switch_name, ip_addr, ip2_addr, ospf_area_id, p2p):
     """
     Method to create interfaces and add ospf neighbors.
     :param module: The Ansible module to fetch input parameters.
     :param switch_name: The name of the switch to run interface.
-    :param interface_ip: Interface ip to create a vrouter interface.
-    :param ospf_network: Ospf network for the ospf neighbor.
+    :param ip_addr: Interface ipv4 address to create a vrouter interface.
+    :param ip2_addr: Interface ipv6 address to create a vrouter interface.
     :param ospf_area_id: The area_id for ospf neighborship.
     :return: String describing if ospf neighbors got added or not.
+    """
+    global CHANGED_FLAG
+    output = ''
+    vlan_id = module.params['pn_iospf_vlan']
+    pim_ssm = module.params['pn_pim_ssm']
+    ospf_cost = module.params['pn_ospf_cost']
+
+    cli = pn_cli(module)
+    clicopy = cli
+    cli += ' vrouter-show location %s format name' % switch_name
+    cli += ' no-show-headers'
+    vrouter = run_cli(module, cli).split()[0]
+
+    cli = clicopy
+    cli += ' vrouter-interface-show ip %s vlan %s' % (ip_addr, vlan_id)
+    cli += ' format switch no-show-headers'
+    existing_vrouter_interface = run_cli(module, cli).split()
+
+    if vrouter not in existing_vrouter_interface:
+        cli = clicopy
+        cli += ' vrouter-interface-add vrouter-name %s vlan %s ip %s' % (
+            vrouter, vlan_id, ip_addr
+        )
+        if ip2_addr:
+            cli += ' ip2 %s' % (ip2_addr)
+        if pim_ssm == True:
+            cli += ' pim-cluster '
+        if module.params['pn_jumbo_frames'] == True:
+            cli += ' mtu 9216'
+        run_cli(module, cli)
+        ip_msg = 'ip %s' % (ip_addr)
+        if ip2_addr:
+            ip_msg += ' ip2 %s' % (ip2_addr)
+        output += ' %s: Added vrouter interface with %s on %s \n' % (
+            switch_name, ip_msg, vrouter
+        )
+        CHANGED_FLAG.append(True)
+
+    cli = clicopy
+    cli += ' vrouter-interface-show vlan %s ' % vlan_id
+    cli += ' vrouter-name %s format nic parsable-delim ,' % vrouter
+    nic = run_cli(module, cli).split(',')[1]
+
+    cli = clicopy
+    cli += ' vrouter-interface-config-show vrouter-name %s' % vrouter
+    cli += ' nic %s no-show-headers ' % nic
+    config_exists = run_cli(module, cli).split()
+    cli = clicopy
+    if 'Success' in config_exists:
+        cli += ' vrouter-interface-config-add vrouter-name %s' % vrouter
+        cli += ' nic %s ospf-cost %s' % (nic, ospf_cost)
+    else:
+        cli += ' vrouter-interface-config-modify vrouter-name %s' % vrouter
+        cli += ' nic %s ospf-cost %s' % (nic, ospf_cost)
+    if p2p:
+        cli += ' ospf-network-type point-to-point'
+    run_cli(module, cli)
+
+    cli = clicopy
+    cli += ' vrouter-ospf-show'
+    cli += ' network %s format switch no-show-headers ' % ip_addr
+    already_added = run_cli(module, cli).split()
+
+    if vrouter in already_added:
+        pass
+    else:
+        ip_addr_without_subnet = ip_addr.split('/')[0]
+        if module.params['pn_bfd']:
+            output += configure_ospf_bfd(module, vrouter,
+                                         ip_addr_without_subnet)
+        cli = clicopy
+        cli += ' vrouter-ospf-add vrouter-name ' + vrouter
+        cli += ' network %s ospf-area %s' % (ip_addr, ospf_area_id)
+
+        if 'Success' in run_cli(module, cli):
+            output += ' %s: Added OSPF neighbor %s to %s \n' % (
+                switch_name, ip_addr, vrouter
+            )
+            CHANGED_FLAG.append(True)
+
+    if ip2_addr:
+            cli = clicopy
+            cli += 'vrouter-ospf6-show nic %s format switch no-show-headers ' % nic
+            ip2_vrouter = run_cli(module, cli).split()
+
+            if vrouter not in ip2_vrouter:
+                cli = clicopy
+                cli += 'vrouter-ospf6-add vrouter-name %s nic %s ospf6-area %s ' % (
+                    vrouter, nic, module.params['pn_ospf_v6_area_id'])
+                run_cli(module, cli)
+                output += ' %s: Added OSPF6 nic %s to %s \n' % (
+                    switch_name, nic, vrouter
+                )
+
+    return output
+
+def vrouter_iospf_vlan_ports_add(module, switch_name, cluster_ports):
+    """
+    Method to create iOSPF vlan and add ports to it
+    :param module: The Ansible module to fetch input parameters.
+    :param switch_name: The name of the switch to run interface.
+    :return: String describing if ospf vlan got added or not.
     """
     global CHANGED_FLAG
     output = ''
@@ -951,59 +988,21 @@ def vrouter_leafcluster_ospf_add(module, switch_name, interface_ip,
 
     if vlan_id not in existing_vlans:
         cli = clicopy
-        cli += ' switch %s vlan-create id %s scope local ' % (switch_name,
-                                                              vlan_id)
+        cli += ' switch %s vlan-create id %s scope cluster ' % (switch_name,
+                                                                vlan_id)
+        cli += ' ports none description iOSPF-cluster-vlan '
         run_cli(module, cli)
         output = ' %s: Created vlan with id %s \n' % (switch_name, vlan_id)
-        CHANGED_FLAG.append(True)
 
     cli = clicopy
-    cli += ' vrouter-show location %s format name' % switch_name
-    cli += ' no-show-headers'
-    vrouter = run_cli(module, cli).split()[0]
-
-    cli = clicopy
-    cli += ' vrouter-interface-show ip %s vlan %s' % (interface_ip, vlan_id)
-    cli += ' format switch no-show-headers'
-    existing_vrouter_interface = run_cli(module, cli).split()
-
-    if vrouter not in existing_vrouter_interface:
-        cli = clicopy
-        cli += ' vrouter-interface-add vrouter-name %s ip %s vlan %s ' % (
-            vrouter, interface_ip, vlan_id
-        )
-        run_cli(module, cli)
-        output += ' %s: Added vrouter interface with ip %s on %s \n' % (
-            switch_name, interface_ip, vrouter
-        )
-        CHANGED_FLAG.append(True)
-
-    cli = clicopy
-    cli += ' vrouter-ospf-show'
-    cli += ' network %s format switch no-show-headers ' % ospf_network
-    already_added = run_cli(module, cli).split()
-
-    if vrouter in already_added:
-        pass
-    else:
-        interface_ip_without_supernet = interface_ip.split('/')[0]
-        if module.params['pn_bfd']:
-            output += configure_ospf_bfd(module, vrouter,
-                                         interface_ip_without_supernet)
-        cli = clicopy
-        cli += ' vrouter-ospf-add vrouter-name ' + vrouter
-        cli += ' network %s ospf-area %s' % (ospf_network, ospf_area_id)
-
-        if 'Success' in run_cli(module, cli):
-            output += ' %s: Added OSPF neighbor %s to %s \n' % (
-                switch_name, ospf_network, vrouter
-            )
-            CHANGED_FLAG.append(True)
+    cli += ' switch %s vlan-port-add vlan-id %s ports %s' % (switch_name, vlan_id, cluster_ports)
+    run_cli(module, cli)
+    CHANGED_FLAG.append(True)
 
     return output
 
 
-def assign_leafcluster_ospf_interface(module, dict_area_id):
+def assign_leafcluster_ospf_interface(module):
     """
     Method to create interfaces and add ospf neighbor for leaf cluster.
     :param module: The Ansible module to fetch input parameters.
@@ -1011,51 +1010,125 @@ def assign_leafcluster_ospf_interface(module, dict_area_id):
     :return: The output of vrouter_interface_ibgp_add() method.
     """
     output = ''
-    iospf_ip_range = module.params['pn_iospf_ip_range']
     spine_list = module.params['pn_spine_list']
     leaf_list = module.params['pn_leaf_list']
-    subnet_count = 0
-    supernet = 30
+    iospf_v4_range = module.params['pn_iospf_ipv4_range']
+    cidr_v4 = int(module.params['pn_cidr_ipv4'])
+    subnet_v4 = module.params['pn_subnet_ipv4']
+    iospf_v6_range = module.params['pn_iospf_ipv6_range']
+    cidr_v6 = int(module.params['pn_cidr_ipv6'])
+    subnet_v6 = module.params['pn_subnet_ipv6']
+    addr_type = module.params['pn_addr_type']
 
     cli = pn_cli(module)
     clicopy = cli
 
-    address = iospf_ip_range.split('.')
-    static_part = str(address[0]) + '.' + str(address[1]) + '.'
-    static_part += str(address[2]) + '.'
+    if addr_type == 'ipv4' or addr_type == 'ipv4_ipv6':
+        available_ips_ipv4 = calculate_link_ip_addresses_ipv4(iospf_v4_range, cidr_v4, subnet_v4)
+
+    if addr_type == 'ipv6' or addr_type == 'ipv4_ipv6':
+        get_count = 2 if subnet_v6 == '127' else 3
+        available_ips_ipv6 = calculate_link_ip_addresses_ipv6(iospf_v6_range, cidr_v6, subnet_v6,
+                                                              get_count)
+
 
     cli += ' cluster-show format name no-show-headers '
     cluster_list = run_cli(module, cli).split()
 
     if len(cluster_list) > 0 and cluster_list[0] != 'Success':
+        if module.params['pn_area_configure_flag'] == 'singlearea':
+            ospf_area_id = module.params['pn_ospf_v4_area_id']
+        else:
+            ospf_area_id = str(int(module.params['pn_ospf_v4_area_id']) + 1)
+
+        point_to_point = False
+        if subnet_v4 == '31' or subnet_v6 == '127':
+            point_to_point = True
         for cluster in cluster_list:
             cli = clicopy
-            cli += ' cluster-show name %s format cluster-node-1' % cluster
-            cli += ' no-show-headers'
-            cluster_node_1 = run_cli(module, cli).split()[0]
-
+            cli += ' cluster-show name %s format cluster-node-1,' % cluster
+            cli += 'ports,cluster-node-2,remote-ports no-show-headers'
+            cluster_node_1, cluster_ports_1, cluster_node_2, cluster_ports_2 = run_cli(module, cli).split()
+            ipv4_1, ipv4_2 = available_ips_ipv4[0:2]
+            available_ips_ipv4.remove(ipv4_1)
+            available_ips_ipv4.remove(ipv4_2)
+            if addr_type == 'ipv6' or addr_type == 'ipv4_ipv6':
+                ip_list = available_ips_ipv6.next()
+                if subnet_v6 == '127':
+                    ipv6_1, ipv6_2 = ip_list[0:2]
+                else:
+                    ipv6_1, ipv6_2 = ip_list[1:3]
+            else:
+                ipv6_1 = ipv6_2 = None
             if cluster_node_1 not in spine_list and cluster_node_1 in leaf_list:
-                ip_count = subnet_count * 4
-                ip1 = static_part + str(ip_count + 1) + '/' + str(supernet)
-                ip2 = static_part + str(ip_count + 2) + '/' + str(supernet)
-                ospf_network = static_part + str(ip_count) + '/' + str(supernet)
-
-                cli = clicopy
-                cli += ' cluster-show name %s format cluster-node-2' % cluster
-                cli += ' no-show-headers'
-                cluster_node_2 = run_cli(module, cli).split()[0]
-
-                ospf_area_id = dict_area_id[cluster_node_1]
-                output += vrouter_leafcluster_ospf_add(module, cluster_node_1,
-                                                       ip1, ospf_network,
-                                                       ospf_area_id)
-                output += vrouter_leafcluster_ospf_add(module, cluster_node_2,
-                                                       ip2, ospf_network,
-                                                       ospf_area_id)
-
-                subnet_count += 1
+                output += vrouter_iospf_vlan_ports_add(module, cluster_node_1, cluster_ports_1)
+                output += vrouter_iospf_interface_add(module, cluster_node_1, ipv4_1, ipv6_1,
+                                                      ospf_area_id, point_to_point)
+                output += vrouter_iospf_vlan_ports_add(module, cluster_node_2, cluster_ports_2)
+                output += vrouter_iospf_interface_add(module, cluster_node_2, ipv4_2, ipv6_2,
+                                                      ospf_area_id, point_to_point)
     else:
         output += ' No leaf clusters present to add iOSPF \n'
+
+    return output
+
+
+def make_interface_passive(module, current_switch):
+    """
+    Method to make VRRP interfaces ospf passive.
+    :param module: The Ansible module to fetch input parameters.
+    :return: String describing if ospf passive interfaces changed or not.
+    """
+    output = ''
+    cli = pn_cli(module)
+    clicopy = cli
+    addr_type = module.params['pn_addr_type']
+
+    vrname = "%s-vrouter" % current_switch
+    cli = clicopy
+    cli += ' switch %s vrouter-interface-config-show vrouter-name ' % current_switch
+    cli += ' %s format nic,ospf-passive-if parsable-delim ,' % vrname
+    pass_intf = run_cli(module, cli).split()
+    passv_info = {}
+    for intf in pass_intf:
+        if not intf:
+            break
+        vrname, intf_index, passv = intf.split(',')
+        passv_info[intf_index] = passv
+
+    cli = clicopy
+    cli += ' switch %s vrouter-interface-show vrouter-name %s ' % (current_switch, vrname)
+    cli += ' format is-vip,is-primary,nic parsable-delim ,'
+    intf_info = run_cli(module, cli).split()
+    for intf in intf_info:
+        if not intf:
+            output += "No router interface exist"
+        vrname, is_vip, is_primary, intf_index = intf.split(',')
+        if is_vip == 'true' or is_primary == 'true':
+            if intf_index in passv_info:
+                if passv_info[intf_index] == "false":
+                    cli = clicopy
+                    cli += ' vrouter-interface-config-modify vrouter-name %s ' % vrname
+                    cli += ' nic %s ospf-passive-if ' % intf_index
+                    run_cli(module, cli)
+            else:
+                cli = clicopy
+                cli += ' vrouter-interface-config-add vrouter-name %s ' % vrname
+                cli += ' nic %s ospf-passive-if ' % intf_index
+                run_cli(module, cli)
+                output += '%s: Added OSPF nic %s to %s \n' % (
+                vrname, intf_index, vrname
+            )
+            CHANGED_FLAG.append(True)
+
+    # Add interface config to 'lo'
+    if addr_type == 'ipv4_ipv6' or addr_type == 'ipv6':
+        cli = clicopy
+        cli += ' vrouter-interface-config-add vrouter-name %s ' % vrname
+        cli += ' nic lo ospf-passive-if '
+        run_cli(module, cli)
+        output += '%s: Added OSPF nic lo to %s \n' % (current_switch, vrname)
+        CHANGED_FLAG.append(True)
 
     return output
 
@@ -1064,8 +1137,7 @@ def main():
     """ This section is for arguments parsing """
     module = AnsibleModule(
         argument_spec=dict(
-            pn_cliusername=dict(required=False, type='str'),
-            pn_clipassword=dict(required=False, type='str', no_log=True),
+            pn_current_switch=dict(required=False, type='str'),
             pn_spine_list=dict(required=False, type='list'),
             pn_leaf_list=dict(required=False, type='list'),
             pn_bgp_as_range=dict(required=False, type='str', default='65000'),
@@ -1073,30 +1145,51 @@ def main():
                                      choices=['none', 'static', 'connected',
                                               'rip', 'ospf'],
                                      default='connected'),
+            pn_ospf_redistribute=dict(required=False, type='str',
+                                      choices=['none', 'static', 'connected',
+                                               'rip', 'ospf'],
+                                      default='none'),
             pn_bgp_maxpath=dict(required=False, type='str', default='16'),
             pn_bfd=dict(required=False, type='bool', default=False),
             pn_ibgp_ip_range=dict(required=False, type='str',
                                   default='75.75.75.0/24'),
             pn_ibgp_vlan=dict(required=False, type='str', default='4040'),
             pn_iospf_vlan=dict(required=False, type='str', default='4040'),
-            pn_iospf_ip_range=dict(required=False, type='str',
-                                   default='75.75.75.0/24'),
-            pn_ospf_area_id=dict(required=False, type='str', default='0'),
+            pn_ospf_cost=dict(required=False, type='str', default='10000'),
+            pn_iospf_ipv4_range=dict(required=False, type='str',
+                                   default='104.255.61.100'),
+            pn_cidr_ipv4=dict(required=False, type='str', default='24'),
+            pn_subnet_ipv4=dict(required=False, type='str', default='31'),
+            pn_iospf_ipv6_range=dict(required=False, type='str',
+                                   default='2620:0000:167F:b001::a0'),
+            pn_cidr_ipv6=dict(required=False, type='str', default='112'),
+            pn_subnet_ipv6=dict(required=False, type='str', default='127'),
+            pn_ospf_v4_area_id=dict(required=False, type='str', default='0'),
+            pn_jumbo_frames=dict(required=False, type='bool', default=False),
             pn_routing_protocol=dict(required=False, type='str',
                                      choices=['ebgp', 'ospf'], default='ebgp'),
+            pn_pim_ssm=dict(required=False, type='bool'),
+            pn_area_configure_flag=dict(required=False, type='str',
+                                        choices=['singlearea', 'dualarea'], default='singlearea'),
+            pn_addr_type=dict(required=False, type='str',
+                              choices=['ipv4', 'ipv6', 'ipv4_ipv6'], default='ipv4'),
+            pn_ospf_v6_area_id=dict(required=False, type='str', default='0.0.0.0'),
         )
     )
 
     global CHANGED_FLAG
     routing_protocol = module.params['pn_routing_protocol']
+    current_switch = module.params['pn_current_switch']
+    spine_list = module.params['pn_spine_list']
+    message = ''
 
     # Get the list of vrouter names.
     cli = pn_cli(module)
     cli += ' vrouter-show format name no-show-headers '
     vrouter_names = run_cli(module, cli).split()
 
-    message = assign_router_id(module, vrouter_names)
-    message += create_leaf_clusters(module)
+    if current_switch in spine_list and spine_list.index(current_switch) == 0:
+        message += create_leaf_clusters(module)
 
     if routing_protocol == 'ebgp':
         dict_bgp_as = find_bgp_as_dict(module)
@@ -1106,14 +1199,16 @@ def main():
         message += add_bgp_neighbor(module, dict_bgp_as)
         message += assign_ibgp_interface(module, dict_bgp_as)
     elif routing_protocol == 'ospf':
-        dict_area_id = find_area_id_leaf_switches(module)
-        message += add_ospf_neighbor(module, dict_area_id)
-        message += add_ospf_redistribute(module, vrouter_names)
-        message += assign_leafcluster_ospf_interface(module, dict_area_id)
+        message += add_ospf_loopback(module, current_switch)
+        message += add_ospf_neighbor(module, current_switch)
+        message += add_ospf_redistribute(module, current_switch)
+        message += make_interface_passive(module, current_switch)
+    if current_switch in spine_list and spine_list.index(current_switch) == 0:
+        message += assign_leafcluster_ospf_interface(module)
 
     message_string = message
     results = []
-    switch_list = module.params['pn_spine_list'] + module.params['pn_leaf_list']
+    switch_list = spine_list + module.params['pn_leaf_list']
     for switch in switch_list:
         replace_string = switch + ': '
 

@@ -1,5 +1,5 @@
 #!/usr/bin/python
-""" PN CLI snmp-community-create/modify/delete """
+""" PN CLI snmp-community-create/snmp-community-delete/snmp-community-modify """
 #
 # This file is part of Ansible
 #
@@ -17,74 +17,59 @@
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-
-ANSIBLE_METADATA = {'metadata_version': '1.1',
-                    'status': ['preview'],
-                    'supported_by': 'community'}
-
+import shlex
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.pn_nvos import pn_cli
 
 DOCUMENTATION = """
 ---
-module: pn_snmp_community
+module: pn_snmp_communtiy
 author: "Pluribus Networks (devops@pluribusnetworks.com)"
-version_added: "2.7"
-short_description: CLI command to create/modify/delete snmp-community.
+version: 2
+short_description: CLI command to create snmp community.
 description:
-  - C(create): create SNMP communities for SNMPv1
-  - C(modify): modify SNMP communities for SNMPv1
-  - C(delete): delete SNMP communities for SNMPv1
+  - SNMP community configuration.
 options:
   pn_cliswitch:
     description:
       - Target switch to run the CLI on.
     required: False
-  state:
+    type: str
+  pn_action:
     description:
-      - State the action to perform. Use 'present' to create snmp-community and
-        'absent' to delete snmp-community 'update' to update snmp-community.
-    required: True
-  pn_community_type:
-    description:
-      - community type
-    choices: ['read-only', 'read-write']
+      - snmp-community command.
+    required: true
+    type: str
   pn_community_string:
     description:
-      - community name
+      - snmp-communtiy string name
+    required: false
     type: str
+  pn_communtiy_type:
+    description:
+      - snmp-communtiy string type
+    required: false
+    type: str
+    choices=['read-only', 'read-write']
 """
 
 EXAMPLES = """
 - name: snmp-community functionality
   pn_snmp_community:
-    pn_cliswitch: "192.168.1.1"
-    state: "present"
-    pn_community_string: "F4u1tMgmt"
+    pn_action: "create"
+    pn_community_string: "football"      
     pn_community_type: "read-write"
-
-- name: snmp-community functionality
-  pn_snmp_community:
-    pn_cliswitch: "192.168.1.1"
-    state: "absent"
-    pn_community_string: "F4u1tMgmt"
-    pn_community_type: "read-write"
-
-- name: snmp-community functionality
-  pn_snmp_community:
-    pn_cliswitch: "192.168.1.1"
-    state: "update"
-    pn_community_string: "F4u1tMgmt"
-    pn_community_type: "read-only"
-"""
+""" 
 
 RETURN = """
 command:
   description: the CLI command run on the target node.
-stdout:
-  description: set of responses from the snmp-community command.
+stdout: 
+  description: set of responses from the snmp-vacm command.
   returned: always
   type: list
 stderr:
-  description: set of error responses from the snmp-community command.
+  description: set of error responses from the snmp-vacm command.
   returned: on error
   type: list
 changed:
@@ -94,13 +79,6 @@ changed:
 """
 
 
-import shlex
-
-# AnsibleModule boilerplate
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.pn_nvos import pn_cli
-
-
 def run_cli(module, cli):
     """
     This method executes the cli command on the target node(s) and returns the
@@ -108,77 +86,45 @@ def run_cli(module, cli):
     :param cli: the complete cli string to be executed on the target node(s).
     :param module: The Ansible module to fetch command
     """
-    cliswitch = module.params['pn_cliswitch']
-    state = module.params['state']
-    command = get_command_from_state(state)
-
-    cmd = shlex.split(cli)
-    result, out, err = module.run_command(cmd)
-
-    print_cli = cli.split(cliswitch)[0]
+    action = module.params['pn_action']
+    cli = shlex.split(cli)
+    rc, out, err = module.run_command(cli)
 
     # Response in JSON format
-    if result != 0:
-        module.exit_json(
-            command=print_cli,
+    if err:
+        module.fail_json(
+            command=' '.join(cli),
             stderr=err.strip(),
-            msg="snmp-community %s operation failed" % cmd,
+            msg="snmp-community %s operation failed" % action,
             changed=False
         )
 
     if out:
         module.exit_json(
-            command=print_cli,
+            command=' '.join(cli),
             stdout=out.strip(),
-            msg="snmp-community %s operation completed" % cmd,
+            msg="snmp-community %s operation completed" % action,
             changed=True
         )
 
     else:
         module.exit_json(
-            command=print_cli,
-            msg="snmp-community %s operation completed" % cmd,
+            command=' '.join(cli),
+            msg="snmp-community %s operation completed" % action,
             changed=True
         )
 
 
-def check_cli(module, cli):
+def check_community(module, community_string):
     """
-    This method checks for idempotency using the snmp-community-show command.
-    If a user with given name exists, return COMMUNITY_EXISTS
-    as True else False.
-    :param module: The Ansible module to fetch input parameters
-    :param cli: The CLI string
-    :return Global Booleans: COMMUNITY_EXISTS
+    This method cchecks for snmp community.
+    :param module: The Ansible module to fetch command
+    :param community_string: the str name of communtiy string.
     """
-    comm_str = module.params['pn_community_string']
-
-    show = cli + \
-        ' snmp-community-show format community-string no-show-headers'
-    show = shlex.split(show)
-    out = module.run_command(show)[1]
-
-    out = out.split()
-    # Global flags
-    global COMMUNITY_EXISTS
-
-    COMMUNITY_EXISTS = True if comm_str in out else False
-
-
-def get_command_from_state(state):
-    """
-    This method gets appropriate command name for the state specified. It
-    returns the command name for the specified state.
-    :param state: The state for which the respective command name is required.
-    """
-    command = None
-    if state == 'present':
-        command = 'snmp-community-create'
-    if state == 'absent':
-        command = 'snmp-community-delete'
-    if state == 'update':
-        command = 'snmp-community-modify'
-    return command
+    cli = pn_cli(module, module.params['pn_cliswitch'])
+    cli += ' snmp-community-show community-string ' + community_string
+    cli = shlex.split(cli)
+    return module.run_command(cli)[1]
 
 
 def main():
@@ -186,46 +132,42 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             pn_cliswitch=dict(required=False, type='str'),
-            state=dict(required=True, type='str',
-                       choices=['present', 'absent', 'update']),
+            pn_action=dict(required=True, type='str',
+                           choices=['create', 'delete', 'modify']),
+            pn_community_string=dict(required=True, type='str'),
             pn_community_type=dict(required=False, type='str',
                                    choices=['read-only', 'read-write']),
-            pn_community_string=dict(required=False, type='str'),
         )
     )
 
-    # Accessing the arguments
-    state = module.params['state']
+    community_string = module.params['pn_community_string']
+    action = module.params['pn_action']
     community_type = module.params['pn_community_type']
-    comm_str = module.params['pn_community_string']
 
-    command = get_command_from_state(state)
-
-    # Building the CLI command string
-    cli = pn_cli(module)
-
-    if command == 'snmp-community-delete':
-        check_cli(module, cli)
-        if COMMUNITY_EXISTS is False:
+    if action == 'create':
+        if check_community(module, community_string):
             module.exit_json(
-                skipped=True,
-                msg='snmp community name %s does not exist' % comm_str
+                msg='snmp-community with name %s \
+                     already present in the switch' % community_string
             )
-        cli += ' %s community-string %s ' % (command, comm_str)
+    elif action == 'modify' or action == 'delete':
+        if not check_community(module, community_string):
+            module.fail_json(
+                msg='snmp-community with name %s \
+                      not present in the switch' % community_string
+            )
     else:
-        if command == 'snmp-community-create':
-            check_cli(module, cli)
-            if COMMUNITY_EXISTS is True:
-                module.exit_json(
-                    skipped=True,
-                    msg='snmp community with name %s already exists' % comm_str
-                )
-        cli += ' %s community-string %s ' % (command, comm_str)
-        if community_type:
-            cli += ' community-type ' + community_type
+        module.fail_json(
+            msg='snmp-community action %s not supported \
+                 Use create/delete/modify' % action
+        )
+    cli = pn_cli(module, module.params['pn_cliswitch'])
+    cli += ' snmp-community-'+ action + ' community-string ' + community_string
+    if community_type and action != 'delete':
+        cli += ' community-type ' + community_type
 
     run_cli(module, cli)
 
-
 if __name__ == '__main__':
     main()
+

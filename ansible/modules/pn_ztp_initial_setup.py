@@ -427,29 +427,56 @@ def create_or_join_fabric(module, fabric_name, fabric_network):
     cli += ' fabric-show format name no-show-headers '
     existing_fabrics = run_cli(module, cli).split()
 
-    if fabric_name not in existing_fabrics:
+    cli = clicopy
+    cli += ' fabric-info format name no-show-headers'
+    cli = shlex.split(cli)
+    rc, out, err = module.run_command(cli)
+
+
+    f = open("/tmp/fabric.txt","a")
+    f.write("%s\nout=%s\nerr%s\n"%(fabric_name,out,err))
+    f.close()
+
+    if out and fabric_name in out.split()[1]:
+        return ' Switch already part of %s fabric' % fabric_name
+    elif out and fabric_name not in out.split()[1]:
+        return 'Switch already in another fabric %s ' % out.split()[1]
+    elif err and fabric_name not in existing_fabrics:
         cli = clicopy
         cli += ' fabric-create name ' + fabric_name
         cli += ' fabric-network ' + fabric_network
         return run_cli(module, cli)
     else:
         cli = clicopy
-        cli += ' fabric-info format name no-show-headers'
-        cli = shlex.split(cli)
-        rc, out, err = module.run_command(cli)
-
-        if err:
-            cli = clicopy
-            cli += ' fabric-join name ' + fabric_name
-        elif out:
-            present_fabric_name = out.split()
-            if present_fabric_name[1] not in existing_fabrics:
-                cli = clicopy
-                cli += ' fabric-join name ' + fabric_name
-            else:
-                return 'Switch already in the fabric'
+        cli += ' fabric-join name ' + fabric_name
 
     return run_cli(module, cli)
+
+
+#    if fabric_name not in existing_fabrics:
+#        cli = clicopy
+#        cli += ' fabric-create name ' + fabric_name
+#        cli += ' fabric-network ' + fabric_network
+#        return run_cli(module, cli)
+#    else:
+#        cli = clicopy
+#        cli += ' fabric-info format name no-show-headers'
+#        cli = shlex.split(cli)
+#        rc, out, err = module.run_command(cli)
+#
+#        if err:
+#            cli = clicopy
+#            cli += ' fabric-join name ' + fabric_name
+#        elif out:
+#            curr_fab_name = out.split()
+#            if curr_fab_name[1] == fabric_name:
+#                return ' Switch already part of %s fabric' % fabric_name
+##                cli = clicopy
+##                cli += ' fabric-join name ' + fabric_name
+#            else:
+#                return 'Switch already in another fabric %s ' % curr_fab_name[1]
+#
+#    return run_cli(module, cli)
 
 
 def modify_auto_neg(module):
@@ -858,15 +885,30 @@ def main():
         CHANGED_FLAG.append(True)
 
     # Create/join fabric
-    if 'created' in create_or_join_fabric(module, fabric_name,
-                                          fabric_network):
+    fab_output = create_or_join_fabric(module, fabric_name, fabric_network)
+    if 'created' in fab_output:
         CHANGED_FLAG.append(True)
         results.append({
             'switch': current_switch,
             'output': u"Created fabric '{}'".format(fabric_name)
         })
-    else:
+    elif 'Joined fabric' in fab_output:
         CHANGED_FLAG.append(True)
+        results.append({
+            'switch': current_switch,
+            'output': u"Joined fabric '{}'".format(fabric_name)
+        })
+    elif fabric_name not in fab_output:
+        module.exit_json(
+            unreachable=False,
+            msg='Fabric creation failed',
+            summary=fab_output,
+            exception='',
+            task='Fabric creation',
+            failed=True,
+            changed=False
+        )
+    else:
         results.append({
             'switch': current_switch,
             'output': u"Joined fabric '{}'".format(fabric_name)

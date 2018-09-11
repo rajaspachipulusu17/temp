@@ -45,12 +45,12 @@ options:
         - Specify list of leaf hosts
       required: False
       type: list
-    pn_cidr_ipv4:
+    pn_ospf_cidr_ipv4:
       description:
         - Specify CIDR value to be used in configuring IPv4 address.
       required: False
       type: str
-    pn_subnet_ipv4:
+    pn_ospf_subnet_ipv4:
       description:
         - Specify subnet value to be used in configuring IPv4 address.
       required: False
@@ -188,7 +188,7 @@ def find_non_clustered_leafs(module):
     cli = pn_cli(module)
     cli += ' cluster-show format cluster-node-1,cluster-node-2 '
     cli += ' no-show-headers '
-    clustered_nodes = run_cli(module, cli).split()
+    clustered_nodes = list(set(run_cli(module, cli).split()))
 
     for leaf in module.params['pn_leaf_list']:
         if leaf not in clustered_nodes:
@@ -210,7 +210,7 @@ def create_cluster(module, name, node1, node2):
     cli = pn_cli(module)
     clicopy = cli
     cli += ' switch %s cluster-show format name no-show-headers ' % node1
-    cluster_list = run_cli(module, cli).split()
+    cluster_list = list(set(run_cli(module, cli).split()))
     if name not in cluster_list:
         cli = clicopy
         cli += ' switch %s cluster-create name %s ' % (node1, name)
@@ -344,6 +344,19 @@ def add_ospf_loopback(module, current_switch):
         if len(ip.split('.')) == 1:
             nic = ip1[2]
             cli = clicopy
+            cli += ' vrouter-ospf6-show vrouter-name %s' % vr_name
+            cli += ' nic %s no-show-headers ' % nic
+            already_added = run_cli(module, cli)
+            if 'Success' in already_added:
+                cli = clicopy
+                cli += ' vrouter-ospf6-add vrouter-name %s' % vr_name
+                cli += ' nic %s' % nic
+                cli += ' ospf6-area %s' % module.params['pn_ospf_v6_area_id']
+                output += run_cli(module, cli)
+
+            # Add loopback interface 'lo' to ospf6
+            cli = clicopy
+            nic = "lo"
             cli += ' vrouter-ospf6-show vrouter-name %s' % vr_name
             cli += ' nic %s no-show-headers ' % nic
             already_added = run_cli(module, cli)
@@ -683,8 +696,8 @@ def assign_leafcluster_ospf_interface(module):
     addr_type = module.params['pn_addr_type']
     iospf_v4_range = module.params['pn_iospf_ipv4_range']
     if addr_type == 'ipv4' or addr_type == 'ipv4_ipv6':
-        cidr_v4 = int(module.params['pn_cidr_ipv4'])
-    subnet_v4 = module.params['pn_subnet_ipv4']
+        cidr_v4 = int(module.params['pn_ospf_cidr_ipv4'])
+    subnet_v4 = module.params['pn_ospf_subnet_ipv4']
     iospf_v6_range = module.params['pn_iospf_ipv6_range']
     if addr_type == 'ipv6' or addr_type == 'ipv4_ipv6':
         cidr_v6 = int(module.params['pn_cidr_ipv6'])
@@ -703,7 +716,7 @@ def assign_leafcluster_ospf_interface(module):
 
 
     cli += ' cluster-show format name no-show-headers '
-    cluster_list = run_cli(module, cli).split()
+    cluster_list = list(set(run_cli(module, cli).split()))
 
     if len(cluster_list) > 0 and cluster_list[0] != 'Success':
         if module.params['pn_area_configure_flag'] == 'singlearea':
@@ -718,7 +731,8 @@ def assign_leafcluster_ospf_interface(module):
             cli = clicopy
             cli += ' cluster-show name %s format cluster-node-1,' % cluster
             cli += 'ports,cluster-node-2,remote-ports no-show-headers'
-            cluster_node_1, cluster_ports_1, cluster_node_2, cluster_ports_2 = run_cli(module, cli).split()
+            c_nod_1, c_por_1, c_nod_2, c_por_2 = run_cli(module, cli).splitlines()[0].split()
+
             if addr_type == 'ipv4' or addr_type == 'ipv4_ipv6':
                 ip_1, ip_2 = available_ips_ipv4[0:2]
                 available_ips_ipv4.remove(ip_1)
@@ -735,12 +749,12 @@ def assign_leafcluster_ospf_interface(module):
                     ip_1, ip_2 = ip_list[0:2]
                 else:
                     ip_1, ip_2 = ip_list[1:3]
-            if cluster_node_1 not in spine_list and cluster_node_1 in leaf_list:
-                output += vrouter_iospf_vlan_ports_add(module, cluster_node_1, cluster_ports_1)
-                output += vrouter_iospf_interface_add(module, cluster_node_1, ip_1, ip2_1,
+            if c_nod_1 not in spine_list and c_nod_1 in leaf_list:
+                output += vrouter_iospf_vlan_ports_add(module, c_nod_1, c_por_1)
+                output += vrouter_iospf_interface_add(module, c_nod_1, ip_1, ip2_1,
                                                       ospf_area_id, point_to_point)
-                output += vrouter_iospf_vlan_ports_add(module, cluster_node_2, cluster_ports_2)
-                output += vrouter_iospf_interface_add(module, cluster_node_2, ip_2, ip2_2,
+                output += vrouter_iospf_vlan_ports_add(module, c_nod_2, c_por_2)
+                output += vrouter_iospf_interface_add(module, c_nod_2, ip_2, ip2_2,
                                                       ospf_area_id, point_to_point)
     else:
         output += ' No leaf clusters present to add iOSPF \n'
@@ -757,6 +771,7 @@ def make_interface_passive(module, current_switch):
     output = ''
     cli = pn_cli(module)
     clicopy = cli
+    addr_type = module.params['pn_addr_type']
 
     vrname = "%s-vrouter" % current_switch
     cli = clicopy
@@ -795,6 +810,15 @@ def make_interface_passive(module, current_switch):
                 )
             CHANGED_FLAG.append(True)
 
+    # Add interface config to 'lo'
+    if addr_type == 'ipv4_ipv6' or addr_type == 'ipv6':
+        cli = clicopy
+        cli += ' vrouter-interface-config-add vrouter-name %s ' % vrname
+        cli += ' nic lo ospf-passive-if '
+        run_cli(module, cli)
+        output += '%s: Added OSPF nic lo to %s \n' % (current_switch, vrname)
+        CHANGED_FLAG.append(True)
+
     return output
 
 
@@ -814,8 +838,8 @@ def main():
             pn_ospf_cost=dict(required=False, type='str', default='10000'),
             pn_iospf_ipv4_range=dict(required=False, type='str',
                                      default='75.75.75.1'),
-            pn_cidr_ipv4=dict(required=False, type='str', default='24'),
-            pn_subnet_ipv4=dict(required=False, type='str', default='31'),
+            pn_ospf_cidr_ipv4=dict(required=False, type='str', default='24'),
+            pn_ospf_subnet_ipv4=dict(required=False, type='str', default='31'),
             pn_iospf_ipv6_range=dict(required=False, type='str',
                                      default=''),
             pn_cidr_ipv6=dict(required=False, type='str', default='112'),

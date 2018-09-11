@@ -95,6 +95,7 @@ msg:
 CHANGED_FLAG = []
 result = []
 
+
 def eula_accept(module, username, password, switch_name, ip):
     """
     Method to accep the eula.
@@ -111,7 +112,14 @@ def eula_accept(module, username, password, switch_name, ip):
     cli += 'eula-show'
     cli = shlex.split(cli)
     rc, out, err = module.run_command(cli)
-    if not out:
+    if 'No license' in err or 'invalid license' in err:
+        result.append({
+            'switch': switch_name,
+            'output': 'To continue to use Netvisor, please enter a valid license',
+            'status': 'fail'
+        })
+        CHANGED_FLAG.append(False)
+    elif not out:
         cli = 'sshpass -p admin ssh -o StrictHostKeyChecking=no '
         cli += '%s@%s -- --quiet --script-password ' % (username, ip)
         cli += 'switch-setup-modify password %s ' % password
@@ -121,12 +129,14 @@ def eula_accept(module, username, password, switch_name, ip):
         CHANGED_FLAG.append(True)
         result.append({
             'switch': switch_name,
-            'output': 'Eula accepted'
+            'output': 'Eula accepted',
+            'status': 'pass'
         })
     else:
         result.append({
             'switch': switch_name,
-            'output': 'Eula already accepted'
+            'output': 'Eula already accepted',
+            'status': 'pass'
         })
 
 
@@ -173,7 +183,16 @@ def main():
     threads = []
 
     for ip in switch_ips:
-        threads.append(threading.Thread(target=eula_accept, args=(module, username, password, switch_list[count], ip,)))
+        threads.append(
+            threading.Thread(
+                target=eula_accept,
+                args=(
+                    module, username,
+                    password, switch_list[count],
+                    ip,
+                )
+            )
+        )
         count += 1
 
     for thread in threads:
@@ -182,15 +201,27 @@ def main():
         thread.join()
 
     # Exit the module and return the required JSON
-    module.exit_json(
-        unreachable=False,
-        msg='Eula accepted successfully',
-        summary=result,
-        exception='',
-        task='Accept eula',
-        failed=False,
-        changed=True if True in CHANGED_FLAG else False
-    )
+    if [1 for eula in result if eula['status'] == 'fail']:
+        module.fail_json(
+            unreachable=False,
+            msg='Eula accept failed',
+            summary=result,
+            exception='',
+            task='Accept eula',
+            failed=False,
+            changed=True if True in CHANGED_FLAG else False
+        )
+    else:
+        module.exit_json(
+            unreachable=False,
+            msg='Eula accepted successfully',
+            summary=result,
+            exception='',
+            task='Accept eula',
+            failed=False,
+            changed=True if True in CHANGED_FLAG else False
+        )
+
 
 if __name__ == '__main__':
     main()
