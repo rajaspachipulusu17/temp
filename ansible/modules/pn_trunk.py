@@ -1,6 +1,5 @@
 #!/usr/bin/python
 """ PN CLI trunk-create/trunk-delete/trunk-modify """
-
 #
 # This file is part of Ansible
 #
@@ -18,141 +17,183 @@
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-ANSIBLE_METADATA = {'metadata_version': '1.1',
-                    'status': ['preview'],
-                    'supported_by': 'community'}
-
+import shlex
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.pn_nvos import pn_cli
 
 DOCUMENTATION = """
 ---
 module: pn_trunk
-author: "Pluribus Networks (@amitsi)"
-version_added: "2.2"
+author: "Pluribus Networks (devops@pluribusnetworks.com)"
+version: 2.0
 short_description: CLI command to create/delete/modify a trunk.
 description:
-  - Execute trunk-create or trunk-delete command.
-  - Trunks can be used to aggregate network links at Layer 2 on the local
-    switch. Use this command to create a new trunk.
+  - Execute trunk-create, trunk-delete or trunk-modify command.
 options:
-  pn_cliusername:
-    description:
-      - Provide login username if user is not root.
-    required: False
-  pn_clipassword:
-    description:
-      - Provide login password if user is not root.
-    required: False
   pn_cliswitch:
     description:
-      - Target switch(es) to run the cli on.
+      - Target switch to run the cli on.
     required: False
-  state:
+    type: str
+  pn_action:
     description:
-      - State the action to perform. Use 'present' to create trunk,
-        'absent' to delete trunk and 'update' to modify trunk.
-    required: True
-    choices: ['present', 'absent', 'update']
+      - The Trunk configuration command.
+    required: true
+    choices: ['create', 'delete', 'modify']
+    type: str
   pn_name:
     description:
-      - Specify the name for the trunk configuration.
+      - Name for the trunk configuration.
     required: true
-  pn_ports:
+    type: str
+  pn_trunk_id:
     description:
-      - Specify the port number(s) for the link(s) to aggregate into the trunk.
-      - Required for trunk-create.
+      - Trunk ID number of physical interface.
+    type: str
+  pn_physical_ports:
+    description:
+      - Physical ports list.
+    type: str
+  pn_bezel_ports:
+    description:
+      - Bezel ports list.
+    type: str
   pn_speed:
     description:
       - Specify the port speed or disable the port.
-    choices: ['disable', '10m', '100m', '1g', '2.5g', '10g', '40g']
+    choices: ['disable', '10m', '100m', '1g', '2.5g', '10g', '25g', '40g',
+              '50g', '100g']
+    type: str
   pn_egress_rate_limit:
     description:
       - Specify an egress port data rate limit for the configuration.
-  pn_jumbo:
+    type: str
+  pn_autoneg:
     description:
+      - Physical port auto-negotiation.
+    type: bool
+  pn_jumbo:
+    description
       - Specify if the port can receive jumbo frames.
+    type: bool
   pn_lacp_mode:
     description:
-      - Specify the LACP mode for the configuration.
+      - LACP mode of the physical port.
     choices: ['off', 'passive', 'active']
+    type: str
   pn_lacp_priority:
-    description:
-      - Specify the LACP priority. This is a number between 1 and 65535 with a
-        default value of 32768.
+    description
+      - LACP priority between 1 and 65535, default 32768.
+    type: str
   pn_lacp_timeout:
     description:
-      - Specify the LACP time out as slow (30 seconds) or fast (4seconds).
-        The default value is slow.
+      - LACP time out as slow or fast, default slow.
     choices: ['slow', 'fast']
+    type: str
   pn_lacp_fallback:
     description:
-      - Specify the LACP fallback mode as bundles or individual.
+      - LACP fallback mode as bundled or individual.
     choices: ['bundle', 'individual']
+    type: str
   pn_lacp_fallback_timeout:
     description:
-      - Specify the LACP fallback timeout in seconds. The range is between 30
-        and 60 seconds with a default value of 50 seconds.
+      - LACP fallback timeout between 30 and 60 seconds, default 50 seconds.
+    type: str
+  pn_reflect:
+    description:
+      - Physical port reflection.
+    type: bool
   pn_edge_switch:
     description:
-      - Specify if the switch is an edge switch.
+      - Physical port edge switch.
+    type: bool
   pn_pause:
     description:
-      - Specify if pause frames are sent.
+      - Physical port pause.
+    type: bool
   pn_description:
     description:
-      - Specify a description for the trunk configuration.
+      - Physical port description.
+    type: str
   pn_loopback:
+    description;
+      - Physical port loopback.
+    type: bool
+  pn_vxlan_termination:
     description:
-      - Specify loopback if you want to use loopback.
-  pn_mirror_receive:
+      - Physical port VxLAN termination.
+    type: bool
+  pn_unkown_ucast_level:
     description:
-      - Specify if the configuration receives mirrored traffic.
-  pn_unknown_ucast_level:
+      - Unkown unicast level in %, default 30%.
+    type: str
+  pn_unkown_mcast_level:
     description:
-      - Specify an unknown unicast level in percent. The default value is 100%.
-  pn_unknown_mcast_level:
-    description:
-      - Specify an unknown multicast level in percent. The default value is 100%.
+      - Unkown multicast level in %, default 30%.
+    type: str
   pn_broadcast_level:
     description:
-      - Specify a broadcast level in percent. The default value is 100%.
+      - Broadcast level in %, default 30%.
+    type: str
   pn_port_macaddr:
     description:
-      - Specify the MAC address of the port.
-  pn_loopvlans:
+      - Physical port MAC address.
+    type: str
+  pn_loop_vlans:
     description:
       - Specify a list of looping vlans.
+    type: str
   pn_routing:
     description:
-      - Specify if the port participates in routing on the network.
+      - Specify if the port participates in routing.
+    type: bool
   pn_host:
     description:
       - Host facing port control setting.
+    type: str
+    choices: ['enable', 'disable']
+  pn_dscp_map:
+    description:
+      - DSCP map name to enable on the port.
+    type: str
+  pn_local_switching:
+    description:
+      - no-local-switching port cannot bridge traffic to another
+        no-local-switching port.
+    type: bool
+  pn_allowed_tpid:
+    description:
+      - Allowed TPID in addition to 0x8100 on vLAN header.
+    type: str
+    choices: ['q-in-q', 'q-in-q-old']
+  pn_fabric_guard:
+    description:
+      - Fabric guard configuration.
+    type: bool
 """
 
 EXAMPLES = """
 - name: create trunk
   pn_trunk:
-    state: 'present'
+    pn_action: 'create'
     pn_name: 'spine-to-leaf'
     pn_ports: '11,12,13,14'
 
 - name: delete trunk
   pn_trunk:
-    state: 'absent'
+    pn_action: 'delete'
     pn_name: 'spine-to-leaf'
 """
 
 RETURN = """
 command:
-  description: The CLI command run on the target node(s).
-  returned: always
-  type: str
+  description: the CLI command run on the target node.
 stdout:
-  description: The set of responses from the trunk command.
+  description: the set of responses from the trunk command.
   returned: always
   type: list
 stderr:
-  description: The set of error responses from the trunk command.
+  description: the set of error responses from the trunk command.
   returned: on error
   type: list
 changed:
@@ -160,59 +201,50 @@ changed:
   returned: always
   type: bool
 """
-
-import shlex
-
-# Ansible boiler-plate
-from ansible.module_utils.basic import AnsibleModule
-
 TRUNK_EXISTS = None
+TRUNK_ID_EXISTS = None
 
 
-def pn_cli(module):
-    """
-    This method is to generate the cli portion to launch the Netvisor cli.
-    It parses the username, password, switch parameters from module.
-    :param module: The Ansible module to fetch username, password and switch
-    :return: returns the cli string for further processing
-    """
-    username = module.params['pn_cliusername']
-    password = module.params['pn_clipassword']
-    cliswitch = module.params['pn_cliswitch']
-
-    if username and password:
-        cli = '/usr/bin/cli --quiet --user %s:%s ' % (username, password)
-    else:
-        cli = '/usr/bin/cli --quiet '
-
-    if cliswitch == 'local':
-        cli += ' switch-local '
-    else:
-        cli += ' switch ' + cliswitch
-    return cli
-
-
-def check_cli(module, cli):
+def check_cli(module):
     """
     This method checks for idempotency using the trunk-show command.
     If a trunk with given name exists, return TRUNK_EXISTS as True else False.
     :param module: The Ansible module to fetch input parameters
-    :param cli: The CLI string
-    :return Global Booleans: TRUNK_EXISTS
+    :return Global Booleans: TRUNK_EXISTS, TRUNK_ID_EXISTS
     """
     name = module.params['pn_name']
+    trunk_id = module.params['pn_trunk_id']
+    switch = module.params['pn_cliswitch']
+    show_cli = pn_cli(module, switch)
+    # Global flags
+    global TRUNK_EXISTS, TRUNK_ID_EXISTS
 
-    show = cli + ' trunk-show format switch,name no-show-headers'
-    show = shlex.split(show)
-    out = module.run_command(show)[1]
+    show_cli += ' trunk-show format switch,name,trunk-id no-show-headers'
+    show_cli = shlex.split(show_cli)
+    out = module.run_command(show_cli)[1]
 
     out = out.split()
-    # Global flags
-    global TRUNK_EXISTS
-    if name in out:
-        TRUNK_EXISTS = True
-    else:
-        TRUNK_EXISTS = False
+
+    TRUNK_EXISTS = True if name in out else False
+    if trunk_id:
+        TRUNK_ID_EXISTS = True if trunk_id in out else False
+
+
+def get_ports(module):
+    cli = pn_cli(module, switch_local=True)
+    phy_ports = module.params['pn_physical_ports']
+    bezel_ports = module.params['pn_bezel_ports']
+
+    if phy_ports:
+        return phy_ports
+
+    if bezel_ports:
+        cli += ' port-show bezel-port %s format port, no-show-headers ' % (bezel_ports)
+        cli = shlex.split(cli)
+        out = module.run_command(cli)[1]
+        if out is not None:
+            out = out.split()
+            return ','.join(out)
 
 
 def run_cli(module, cli):
@@ -222,153 +254,161 @@ def run_cli(module, cli):
     :param cli: the complete cli string to be executed on the target node(s).
     :param module: The Ansible module to fetch command
     """
-    cliswitch = module.params['pn_cliswitch']
-    state = module.params['state']
-    command = get_command_from_state(state)
+    action = module.params['pn_action']
+    cli = shlex.split(cli)
 
-    cmd = shlex.split(cli)
-
-    # 'out' contains the output
-    # 'err' contains the error messages
-    result, out, err = module.run_command(cmd)
-
-    print_cli = cli.split(cliswitch)[1]
+    rc, out, err = module.run_command(cli)
 
     # Response in JSON format
-    if result != 0:
+    if err:
         module.exit_json(
-            command=print_cli,
+            command=' '.join(cli),
             stderr=err.strip(),
-            msg="%s operation failed" % command,
+            msg="Trunk %s operation failed" % action,
             changed=False
         )
 
     if out:
         module.exit_json(
-            command=print_cli,
+            command=' '.join(cli),
             stdout=out.strip(),
-            msg="%s operation completed" % command,
+            msg="Trunk %s operation completed" % action,
             changed=True
         )
 
     else:
         module.exit_json(
-            command=print_cli,
-            msg="%s operation completed" % command,
+            command=' '.join(cli),
+            msg="Trunk %s operation completed" % action,
             changed=True
         )
-
-
-def get_command_from_state(state):
-    """
-    This method gets appropriate command name for the state specified. It
-    returns the command name for the specified state.
-    :param state: The state for which the respective command name is required.
-    """
-    command = None
-    if state == 'present':
-        command = 'trunk-create'
-    if state == 'absent':
-        command = 'trunk-delete'
-    if state == 'update':
-        command = 'trunk-modify'
-    return command
 
 
 def main():
     """ This portion is for arguments parsing """
     module = AnsibleModule(
         argument_spec=dict(
-            pn_cliusername=dict(required=False, type='str'),
-            pn_clipassword=dict(required=False, type='str', no_log=True),
-            pn_cliswitch=dict(required=False, type='str', default='local'),
-            state=dict(required=True, type='str',
-                       choices=['present', 'absent', 'update']),
+            pn_cliswitch=dict(required=False, type='str'),
+            pn_action=dict(required=True, type='str',
+                        choices=['create', 'delete', 'modify']),
             pn_name=dict(required=True, type='str'),
-            pn_ports=dict(type='str'),
+            pn_trunk_id=dict(type='str'),
+            pn_bezel_ports=dict(type='str'),
+            pn_physical_ports=dict(type='str'),
             pn_speed=dict(type='str',
                           choices=['disable', '10m', '100m', '1g', '2.5g',
-                                   '10g', '40g']),
+                                   '10g', '25g', '40g', '50g', '100g']),
             pn_egress_rate_limit=dict(type='str'),
+            pn_autoneg=dict(type='bool'),
             pn_jumbo=dict(type='bool'),
-            pn_lacp_mode=dict(type='str', choices=[
-                              'off', 'passive', 'active']),
+            pn_lacp_mode=dict(type='str',
+                              choices=['off', 'passive', 'active']),
             pn_lacp_priority=dict(type='int'),
             pn_lacp_timeout=dict(type='str'),
-            pn_lacp_fallback=dict(type='str', choices=[
-                                  'bundle', 'individual']),
+            pn_lacp_fallback=dict(type='str',
+                                  choices=['bundle', 'individual']),
             pn_lacp_fallback_timeout=dict(type='str'),
+            pn_reflect=dict(type='bool'),
             pn_edge_switch=dict(type='bool'),
             pn_pause=dict(type='bool'),
             pn_description=dict(type='str'),
             pn_loopback=dict(type='bool'),
-            pn_mirror_receive=dict(type='bool'),
+            pn_vxlan_termination=dict(type='bool'),
             pn_unknown_ucast_level=dict(type='str'),
             pn_unknown_mcast_level=dict(type='str'),
             pn_broadcast_level=dict(type='str'),
             pn_port_macaddr=dict(type='str'),
-            pn_loopvlans=dict(type='str'),
+            pn_loop_vlans=dict(type='str'),
             pn_routing=dict(type='bool'),
-            pn_host=dict(type='bool')
+            pn_host=dict(type='str',
+                         choices=['enable', 'disable']),
+            pn_dscp_map=dict(type='str'),
+            pn_local_switching=dict(type='bool'),
+            pn_allowed_tpid=dict(type='bool',
+                                 choices=['q-in-q', 'q-in-q-old']),
+            pn_fabric_guard=dict(type='bool')
         ),
-        required_if=(
-            ["state", "present", ["pn_name", "pn_ports"]],
-            ["state", "absent", ["pn_name"]],
-            ["state", "update", ["pn_name"]]
-        )
+        mutually_exclusive=["pn_physical_ports", "pn_bezel_ports"]
     )
 
     # Accessing the arguments
-    state = module.params['state']
+    switch = module.params['pn_cliswitch']
+    action = module.params['pn_action']
+    command = ' trunk-' + action
     name = module.params['pn_name']
-    ports = module.params['pn_ports']
+    trunk_id = module.params['pn_trunk_id']
+    bezel_ports = module.params['pn_bezel_ports']
+    physical_ports = module.params['pn_physical_ports']
     speed = module.params['pn_speed']
     egress_rate_limit = module.params['pn_egress_rate_limit']
+    autoneg = module.params['pn_autoneg']
     jumbo = module.params['pn_jumbo']
     lacp_mode = module.params['pn_lacp_mode']
     lacp_priority = module.params['pn_lacp_priority']
     lacp_timeout = module.params['pn_lacp_timeout']
     lacp_fallback = module.params['pn_lacp_fallback']
     lacp_fallback_timeout = module.params['pn_lacp_fallback_timeout']
+    reflect = module.params['pn_reflect']
     edge_switch = module.params['pn_edge_switch']
     pause = module.params['pn_pause']
     description = module.params['pn_description']
     loopback = module.params['pn_loopback']
-    mirror_receive = module.params['pn_mirror_receive']
+    vxlan_termination = module.params['pn_vxlan_termination']
     unknown_ucast_level = module.params['pn_unknown_ucast_level']
     unknown_mcast_level = module.params['pn_unknown_mcast_level']
     broadcast_level = module.params['pn_broadcast_level']
     port_macaddr = module.params['pn_port_macaddr']
-    loopvlans = module.params['pn_loopvlans']
+    loop_vlans = module.params['pn_loop_vlans']
     routing = module.params['pn_routing']
     host = module.params['pn_host']
+    dscp_map = module.params['pn_dscp_map']
+    local_switching = module.params['pn_local_switching']
+    allowed_tpid = module.params['pn_allowed_tpid']
+    fabric_guard = module.params['pn_fabric_guard']
 
-    command = get_command_from_state(state)
 
     # Building the CLI command string
-    cli = pn_cli(module)
+    cli = pn_cli(module, switch)
+    check_cli(module)
+    ports = get_ports(module)
 
-    if command == 'trunk-delete':
+    cli += ' %s name %s ' % (command, name)
 
-        check_cli(module, cli)
+    if action == 'delete':
         if TRUNK_EXISTS is False:
             module.exit_json(
                 skipped=True,
                 msg='Trunk with name %s does not exist' % name
             )
-        cli += ' %s name %s ' % (command, name)
-
+        if trunk_id:
+            if TRUNK_ID_EXISTS is False:
+                module.exit_json(
+                    skipped=True,
+                    msg='Trunk with id %s does not exist' % trunk_id
+                )
+            cli += ' trunk-id ' + trunk_id
     else:
-        if command == 'trunk-create':
-            check_cli(module, cli)
+        if action == 'create':
             if TRUNK_EXISTS is True:
                 module.exit_json(
                     skipped=True,
                     msg='Trunk with name %s already exists' % name
                 )
-        cli += ' %s name %s ' % (command, name)
 
-        # Appending options
+        if action == 'modify':
+            if TRUNK_EXISTS is False:
+                module.exit_json(
+                    skipped=True,
+                    msg='Trunk with name %s does not exist' % name
+                )
+            if trunk_id:
+                if TRUNK_ID_EXISTS is False:
+                    module.exit_json(
+                        skipped=True,
+                        msg='Trunk with id %s does not exist' % trunk_id
+                    )
+                cli += ' trunk-id ' + trunk_id
+
         if ports:
             cli += ' ports ' + ports
 
@@ -377,6 +417,11 @@ def main():
 
         if egress_rate_limit:
             cli += ' egress-rate-limit ' + egress_rate_limit
+
+        if autoneg is True:
+            cli += ' autoneg '
+        if autoneg is False:
+            cli += ' no-autoneg '
 
         if jumbo is True:
             cli += ' jumbo '
@@ -398,6 +443,11 @@ def main():
         if lacp_fallback_timeout:
             cli += ' lacp-fallback-timeout ' + lacp_fallback_timeout
 
+        if reflect is True:
+            cli += ' reflect '
+        if reflect is False:
+            cli += ' no-reflect '
+
         if edge_switch is True:
             cli += ' edge-switch '
         if edge_switch is False:
@@ -416,10 +466,10 @@ def main():
         if loopback is False:
             cli += ' no-loopback '
 
-        if mirror_receive is True:
-            cli += ' mirror-receive-only '
-        if mirror_receive is False:
-            cli += ' no-mirror-receive-only '
+        if vxlan_termination is True:
+            cli += ' vxlan-termination '
+        if vxlan_termination is False:
+            cli += ' no-vxlan-termination '
 
         if unknown_ucast_level:
             cli += ' unknown-ucast-level ' + unknown_ucast_level
@@ -433,21 +483,34 @@ def main():
         if port_macaddr:
             cli += ' port-mac-address ' + port_macaddr
 
-        if loopvlans:
-            cli += ' loopvlans ' + loopvlans
+        if loop_vlans:
+            cli += ' loop-vlans ' + loop_vlans
 
         if routing is True:
             cli += ' routing '
         if routing is False:
             cli += ' no-routing '
 
-        if host is True:
-            cli += ' host-enable '
-        if host is False:
-            cli += ' host-disable '
+        if host:
+            cli += ' host-' + host
+
+        if dscp_map:
+            cli += 'dscp-map ' + dscp_map
+
+        if local_switching is True:
+            cli += ' local-switching '
+        if local_switching is False:
+            cli += ' no-local-switching '
+
+        if allowed_tpid:
+            cli += ' allowed-tpid ' + allowed_tpid
+
+        if fabric_guard is True:
+            cli += ' fabric-guard '
+        if fabric_guard is False:
+            cli += ' no-fabric-guard '
 
     run_cli(module, cli)
-
 
 if __name__ == '__main__':
     main()
