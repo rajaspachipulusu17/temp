@@ -569,46 +569,46 @@
         var: output
 
 
-## This task is to create vrouter interface.
-## It uses pn_vrouter_iface.py module from library/ directory.
-## Create SVI interface on Spine 3 for VLAN 490
-#- name: vrouter interface modules
-#  hosts: spine[2]
-#  tags: spine-svi
-#  ignore_errors: no
-#
-#  tasks:
-#    - name: Add a vrouter interface
-#      pn_vrouter_iface:
-#        pn_action: "add"                                # vRouter interface command - add/remove/modify.
-#        pn_vrouter: "{{ inventory_hostname }}-vrouter"  # Name of the vrouter.
-#        pn_vlan: "490"                                  # Interface vlan.
-#        pn_interface_ip: "192.168.3.17/29"                  # IP address for the interface in x.x.x.x/n format.
-#        pn_mtu: "9216"                                  # Interface MTU.
-#      register: output
-#    - debug:
-#        var: output
+# This task is to create vrouter interface.
+# It uses pn_vrouter_iface.py module from library/ directory.
+# Create SVI interface on Spine 3 for VLAN 490
+- name: vrouter interface modules
+  hosts: spine[2]
+  tags: spine-svi
+  ignore_errors: no
+
+  tasks:
+    - name: Add a vrouter interface
+      pn_vrouter_iface:
+        pn_action: "add"                                # vRouter interface command - add/remove/modify.
+        pn_vrouter: "{{ inventory_hostname }}-vrouter"  # Name of the vrouter.
+        pn_vlan: "490"                                  # Interface vlan.
+        pn_interface_ip: "192.168.3.17/29"                  # IP address for the interface in x.x.x.x/n format.
+        pn_mtu: "9216"                                  # Interface MTU.
+      register: output
+    - debug:
+        var: output
 
 
-## This task is to create vrouter interface.
-## It uses pn_vrouter_iface.py module from library/ directory.
-## Create SVI interface on Spine 4 for VLAN 490
-#- name: vrouter interface  modules
-#  hosts: spine[3]
-#  tags: spine-svi
-#  ignore_errors: no
-#
-#  tasks:
-#    - name: Add a vrouter interface
-#      pn_vrouter_iface:
-#        pn_action: "add"                               # vRouter interface command - add/remove/modify.
-#        pn_vrouter: "{{ inventory_hostname }}-vrouter" # Name of the vrouter.
-#        pn_vlan: "490"                                 # Interface vlan.
-#        pn_interface_ip: "192.168.3.25/29"                # IP address for the interface in x.x.x.x/n format.
-#        pn_mtu: "9216"                                 # Interface MTU.
-#      register: output
-#    - debug:
-#        var: output
+# This task is to create vrouter interface.
+# It uses pn_vrouter_iface.py module from library/ directory.
+# Create SVI interface on Spine 4 for VLAN 490
+- name: vrouter interface  modules
+  hosts: spine[3]
+  tags: spine-svi
+  ignore_errors: no
+
+  tasks:
+    - name: Add a vrouter interface
+      pn_vrouter_iface:
+        pn_action: "add"                               # vRouter interface command - add/remove/modify.
+        pn_vrouter: "{{ inventory_hostname }}-vrouter" # Name of the vrouter.
+        pn_vlan: "490"                                 # Interface vlan.
+        pn_interface_ip: "192.168.3.25/29"                # IP address for the interface in x.x.x.x/n format.
+        pn_mtu: "9216"                                 # Interface MTU.
+      register: output
+    - debug:
+        var: output
 
 
 # This task is to add ospf network
@@ -712,23 +712,23 @@
         var: output
 
 
-## Add Host ports and vxlan-loopback trunk port to Leaf3-Leaf4 ports to vlan 168
-## This task is to add ports to vlan.
-## It uses pn_vlan_port.py module from library/ directory.
-#- name:  add port to vlan
-#  hosts: leaf[2], leaf[3]
-#  tags: vlan-port-168
-#
-#  tasks:
-#    - name: vlan add port
-#      pn_vlan_port:
-#        pn_action: "add"
-#        pn_cliswitch: "{{ inventory_hostname }}"
-#        pn_ports: "1,2,49,53,253"
-#        pn_vlanid: "168"
-#      register: output
-#    - debug:
-#        var: output
+# Add Host ports and vxlan-loopback trunk port to Leaf3-Leaf4 ports to vlan 168
+# This task is to add ports to vlan.
+# It uses pn_vlan_port.py module from library/ directory.
+- name:  add port to vlan
+  hosts: leaf[2], leaf[3]
+  tags: vlan-port-168
+
+  tasks:
+    - name: vlan add port
+      pn_vlan_port:
+        pn_action: "add"
+        pn_cliswitch: "{{ inventory_hostname }}"
+        pn_ports: "1,2,49,53,253"
+        pn_vlanid: "168"
+      register: output
+    - debug:
+        var: output
 
 
 # Remove all ports from vlan 400
@@ -790,23 +790,23 @@
         var: output
 
 
-## Add Host ports and vxlan-loopback trunk port to Leaf3-Leaf4 ports to vlan 400
-## This task is to add ports to vlan.
-## It uses pn_vlan_port.py module from library/ directory.
-#- name:  add port to vlan
-#  hosts: leaf[2], leaf[3]
-#  tags: vlan-port-400
-#
-#  tasks:
-#    - name: vlan add port
-#      pn_vlan_port:
-#        pn_action: "add"
-#        pn_cliswitch: "{{ inventory_hostname }}"
-#        pn_ports: "1,2,49,53,253"
-#        pn_vlanid: "400"
-#      register: output
-#    - debug:
-#        var: output
+# Add Host ports and vxlan-loopback trunk port to Leaf3-Leaf4 ports to vlan 400
+# This task is to add ports to vlan.
+# It uses pn_vlan_port.py module from library/ directory.
+- name:  add port to vlan
+  hosts: leaf[2], leaf[3]
+  tags: vlan-port-400
+
+  tasks:
+    - name: vlan add port
+      pn_vlan_port:
+        pn_action: "add"
+        pn_cliswitch: "{{ inventory_hostname }}"
+        pn_ports: "1,2,49,53,253"
+        pn_vlanid: "400"
+      register: output
+    - debug:
+        var: output
 
 
 # This task will configure bgp-as in switches.
@@ -1060,47 +1060,47 @@
         var: output
 
 
-## VLAG between Leaf 3&4 and HostA
-## This task is to create/delete/modify vlag configs.
-## It uses pn_vlag.py module from library/ directory.
-#- name:  create vlag
-#  hosts: leaf[2]
-#  tags: vlag
-#
-#  tasks:
-#    - name: create vlag
-#      pn_vlag:
-#        pn_action: "create"                            # Specify the action. choices=['create', 'delete', 'modify']
-#        pn_name: "503pair-to-hostA-vlag"                           # Specify the name of vlag.
-#        pn_port: "1"                          # Specify the port of vlag.
-#        pn_peer_port: "1"                     # Specify the peer port.
-#        pn_mode: "active-active"                       # Specify mode. choices=['active-standby', 'active-active'].
-#        pn_lacp_mode: "active"                        # Specify lacp mode. choices=['off', 'passive', 'active'].
-#      register: output
-#    - debug:
-#        var: output
-#
-#
-## VLAG between Leaf 3&4 and HostB
-## This task is to create/delete/modify vlag configs.
-## It uses pn_vlag.py module from library/ directory.
-#- name:  create vlag
-#  hosts: leaf[2]
-#  tags: vlag
-#
-#  tasks:
-#    - name: create vlag
-#      pn_vlag:
-#        pn_action: "create"                            # Specify the action. choices=['create', 'delete', 'modify']
-#        pn_name: "503pair-to-hostB-vlag"                           # Specify the name of vlag.
-#        pn_port: "2"                          # Specify the port of vlag.
-#        pn_peer_port: "2"                     # Specify the peer port.
-#        pn_mode: "active-active"                       # Specify mode. choices=['active-standby', 'active-active'].
-#        pn_lacp_mode: "active"                        # Specify lacp mode. choices=['off', 'passive', 'active'].
-#      register: output
-#    - debug:
-#        var: output
-#
+# VLAG between Leaf 3&4 and HostA
+# This task is to create/delete/modify vlag configs.
+# It uses pn_vlag.py module from library/ directory.
+- name:  create vlag
+  hosts: leaf[2]
+  tags: vlag
+
+  tasks:
+    - name: create vlag
+      pn_vlag:
+        pn_action: "create"                            # Specify the action. choices=['create', 'delete', 'modify']
+        pn_name: "503pair-to-hostA-vlag"                           # Specify the name of vlag.
+        pn_port: "1"                          # Specify the port of vlag.
+        pn_peer_port: "1"                     # Specify the peer port.
+        pn_mode: "active-active"                       # Specify mode. choices=['active-standby', 'active-active'].
+        pn_lacp_mode: "active"                        # Specify lacp mode. choices=['off', 'passive', 'active'].
+      register: output
+    - debug:
+        var: output
+
+
+# VLAG between Leaf 3&4 and HostB
+# This task is to create/delete/modify vlag configs.
+# It uses pn_vlag.py module from library/ directory.
+- name:  create vlag
+  hosts: leaf[2]
+  tags: vlag
+
+  tasks:
+    - name: create vlag
+      pn_vlag:
+        pn_action: "create"                            # Specify the action. choices=['create', 'delete', 'modify']
+        pn_name: "503pair-to-hostB-vlag"                           # Specify the name of vlag.
+        pn_port: "2"                          # Specify the port of vlag.
+        pn_peer_port: "2"                     # Specify the peer port.
+        pn_mode: "active-active"                       # Specify mode. choices=['active-standby', 'active-active'].
+        pn_lacp_mode: "active"                        # Specify lacp mode. choices=['off', 'passive', 'active'].
+      register: output
+    - debug:
+        var: output
+
 
 ## VLAG between Leaf1&2 and Pica8-1
 ## This task is to create/delete/modify vlag configs.
