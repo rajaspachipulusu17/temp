@@ -433,10 +433,6 @@ def create_or_join_fabric(module, fabric_name, fabric_network):
     rc, out, err = module.run_command(cli)
 
 
-    f = open("/tmp/fabric.txt","a")
-    f.write("%s\nout=%s\nerr%s\n"%(fabric_name,out,err))
-    f.close()
-
     if out and fabric_name in out.split()[1]:
         return ' Switch already part of %s fabric' % fabric_name
     elif out and fabric_name not in out.split()[1]:
@@ -451,32 +447,6 @@ def create_or_join_fabric(module, fabric_name, fabric_network):
         cli += ' fabric-join name ' + fabric_name
 
     return run_cli(module, cli)
-
-
-#    if fabric_name not in existing_fabrics:
-#        cli = clicopy
-#        cli += ' fabric-create name ' + fabric_name
-#        cli += ' fabric-network ' + fabric_network
-#        return run_cli(module, cli)
-#    else:
-#        cli = clicopy
-#        cli += ' fabric-info format name no-show-headers'
-#        cli = shlex.split(cli)
-#        rc, out, err = module.run_command(cli)
-#
-#        if err:
-#            cli = clicopy
-#            cli += ' fabric-join name ' + fabric_name
-#        elif out:
-#            curr_fab_name = out.split()
-#            if curr_fab_name[1] == fabric_name:
-#                return ' Switch already part of %s fabric' % fabric_name
-##                cli = clicopy
-##                cli += ' fabric-join name ' + fabric_name
-#            else:
-#                return 'Switch already in another fabric %s ' % curr_fab_name[1]
-#
-#    return run_cli(module, cli)
 
 
 def modify_auto_neg(module):
